@@ -93,7 +93,7 @@ swift run CodexQuotaMonitor
 
 V1 优先解析当前规格中的 `result.rateLimitsByLimitId`，不存在、为空或全部 bucket 无法解析时回退到 `result.rateLimits`，并兼容直接返回 rate-limit object 的变体。未知 JSON 字段会被忽略；单个无法解析的 bucket 不会影响其他 bucket。
 
-本机 `codex-cli 0.152.1` 对 `account/rateLimits/read` 的 object 参数返回 `-32600`（`expected unit`），因此客户端先尝试 `excludeResetCreditDetails`，遇到该 schema 错误时自动回退到无参数请求。诊断脚本会在输出中标记实际使用的 `requestMode`。
+本机 `codex-cli 0.152.1` 对 `account/rateLimits/read` 的 object 参数返回 `-32600`（`expected unit`），且该错误可能延迟到客户端超时之后才返回。因此客户端优先使用无参数请求；如果其他 app-server 版本明确要求 object 参数，再在 schema 错误后重试带 `excludeResetCreditDetails` 的请求。诊断脚本会在输出中标记实际使用的 `requestMode`。
 
 如果本机 Codex app-server 的字段或协议发生变化，应优先以本机官方 schema 为准，并在 `RateLimitParser` 中增加兼容映射，而不是绕过 app-server 读取认证文件或私有 HTTP 接口。
 

@@ -18,4 +18,9 @@ rm -f "${contents_dir}/MacOS/CodexQuotaMonitor"
 cp "${bin_path}/CodexQuotaMonitor" "${contents_dir}/MacOS/CodexQuotaMonitor"
 cp "${project_dir}/Resources/Info.plist" "${contents_dir}/Info.plist"
 
+# Re-sign the completed bundle after Info.plist is present. SwiftPM's linker
+# signature covers only the executable and can be rejected by LaunchServices
+# with "code has no resources but signature indicates they must be present".
+codesign --force --deep --sign - "${app_dir}"
+
 echo "Created ${app_dir}"

@@ -60,7 +60,7 @@ struct QuotaWidgetView: View {
                 Button("显示/隐藏桌面挂件") { appState.togglePanel() }
                 SettingsLink { Text("设置") }
                 Divider()
-                Button("退出") { NSApplication.shared.terminate(nil) }
+                Button("退出") { AppDelegate.requestTermination() }
             } label: {
                 Image(systemName: "ellipsis")
             }

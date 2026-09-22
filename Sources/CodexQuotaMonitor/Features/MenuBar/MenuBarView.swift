@@ -40,7 +40,7 @@ struct MenuBarView: View {
         SettingsLink { Text("设置") }
         Divider()
         Button("退出") {
-            NSApplication.shared.terminate(nil)
+            AppDelegate.requestTermination()
         }
     }
 }

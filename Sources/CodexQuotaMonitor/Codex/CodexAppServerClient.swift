@@ -57,21 +57,23 @@ actor CodexAppServerClient {
             try await ensureReady()
             var response: JSONRPCResponse
             do {
-                // Reset-credit details are not needed by the quota card and
-                // would add unnecessary response data to every refresh.
-                response = try await transport.request(
-                    method: "account/rateLimits/read",
-                    params: .object(["excludeResetCreditDetails": .bool(true)])
-                )
+                // Codex CLI 0.152.x expects this method's params to be the
+                // unit value. Omitting params is the compatible wire form
+                // and avoids waiting for its delayed schema error response.
+                response = try await transport.request(method: "account/rateLimits/read")
             } catch {
                 throw rateLimitsFailure(from: error)
             }
             if response.error?.code == -32600 {
-                // Codex CLI 0.152.x still expects a unit/empty parameter for
-                // this method. Retry once without params for that schema only.
-                logger.debug("rate limit request params rejected; retrying without params")
+                // Older app-server revisions may require an explicit options
+                // object. Retry only for the schema error, never for a
+                // timeout or a server/authentication failure.
+                logger.debug("rate limit request requires options params; retrying with options")
                 do {
-                    response = try await transport.request(method: "account/rateLimits/read")
+                    response = try await transport.request(
+                        method: "account/rateLimits/read",
+                        params: .object(["excludeResetCreditDetails": .bool(true)])
+                    )
                 } catch {
                     throw rateLimitsFailure(from: error)
                 }
