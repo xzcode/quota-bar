@@ -19,6 +19,18 @@ swift build
 swift run CodexQuotaMonitor
 ```
 
+协议诊断（只输出 rate-limit 字段结构，不输出认证信息）：
+
+```bash
+./Scripts/diagnose-app-server.py
+```
+
+运行纯协议测试：
+
+```bash
+swift run CodexQuotaMonitorTests
+```
+
 生成可双击运行的 `.app`：
 
 ```bash
@@ -79,7 +91,9 @@ swift run CodexQuotaMonitor
 
 ## Compatibility Notes
 
-V1 优先解析当前规格中的 `result.rateLimitsByLimitId`，不存在时回退到 `result.rateLimits`，并兼容直接返回 rate-limit object 的变体。未知 JSON 字段会被忽略；单个无法解析的 bucket 不会影响其他 bucket。
+V1 优先解析当前规格中的 `result.rateLimitsByLimitId`，不存在、为空或全部 bucket 无法解析时回退到 `result.rateLimits`，并兼容直接返回 rate-limit object 的变体。未知 JSON 字段会被忽略；单个无法解析的 bucket 不会影响其他 bucket。
+
+本机 `codex-cli 0.152.1` 对 `account/rateLimits/read` 的 object 参数返回 `-32600`（`expected unit`），因此客户端先尝试 `excludeResetCreditDetails`，遇到该 schema 错误时自动回退到无参数请求。诊断脚本会在输出中标记实际使用的 `requestMode`。
 
 如果本机 Codex app-server 的字段或协议发生变化，应优先以本机官方 schema 为准，并在 `RateLimitParser` 中增加兼容映射，而不是绕过 app-server 读取认证文件或私有 HTTP 接口。
 
@@ -94,4 +108,4 @@ Sources/CodexQuotaMonitor/
 └── Window/       NSPanel 与窗口位置持久化
 ```
 
-本版本遵循项目约定，未添加额外单元测试文件；核心解析和格式化逻辑保持独立，后续可按规格补充测试 target。
+核心解析、格式化和 JSON-RPC response 兼容性由 `CodexQuotaMonitorTests` runner 覆盖。当前机器仅安装 Command Line Tools，没有 XCTest/Swift Testing，因此使用无第三方依赖的 SwiftPM executable runner，并通过 `swift run CodexQuotaMonitorTests` 执行。

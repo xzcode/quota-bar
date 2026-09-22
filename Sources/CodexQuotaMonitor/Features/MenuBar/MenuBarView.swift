@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import CodexQuotaCore
 
 /// Menu-bar detail menu with the same live snapshot as the desktop card.
 struct MenuBarView: View {

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import CodexQuotaCore
 
 /// Compact translucent desktop card shown inside the borderless NSPanel.
 struct QuotaWidgetView: View {

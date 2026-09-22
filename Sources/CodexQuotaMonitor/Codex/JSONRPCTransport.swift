@@ -1,4 +1,5 @@
 import Foundation
+import CodexQuotaCore
 
 /// Owns one app-server process and multiplexes line-delimited JSON-RPC calls.
 actor JSONRPCTransport {

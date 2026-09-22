@@ -1,4 +1,5 @@
 import SwiftUI
+import CodexQuotaCore
 
 /// Renders one actual primary/secondary window returned by app-server.
 struct QuotaRowView: View {

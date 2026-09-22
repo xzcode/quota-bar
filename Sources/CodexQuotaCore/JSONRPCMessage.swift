@@ -1,7 +1,7 @@
 import Foundation
 
 /// A small JSON value type lets the client tolerate additive app-server fields.
-enum JSONValue: Codable, Equatable, Sendable {
+public enum JSONValue: Codable, Equatable, Sendable {
     case object([String: JSONValue])
     case array([JSONValue])
     case string(String)
@@ -9,7 +9,7 @@ enum JSONValue: Codable, Equatable, Sendable {
     case bool(Bool)
     case null
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
@@ -28,7 +28,7 @@ enum JSONValue: Codable, Equatable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .object(let value): try container.encode(value)
@@ -40,51 +40,81 @@ enum JSONValue: Codable, Equatable, Sendable {
         }
     }
 
-    var objectValue: [String: JSONValue]? {
+    public var objectValue: [String: JSONValue]? {
         guard case .object(let value) = self else { return nil }
         return value
     }
 
-    var stringValue: String? {
+    public var stringValue: String? {
         guard case .string(let value) = self else { return nil }
         return value
     }
 
-    var doubleValue: Double? {
+    public var doubleValue: Double? {
         guard case .number(let value) = self else { return nil }
         return value
     }
 }
 
 /// JSON-RPC request with an optional object parameter payload.
-struct JSONRPCRequest: Encodable, Sendable {
-    let jsonrpc = "2.0"
-    let id: Int?
-    let method: String
-    let params: JSONValue?
+public struct JSONRPCRequest: Encodable, Sendable {
+    public let jsonrpc = "2.0"
+    public let id: Int?
+    public let method: String
+    public let params: JSONValue?
+
+    public init(id: Int?, method: String, params: JSONValue?) {
+        self.id = id
+        self.method = method
+        self.params = params
+    }
 }
 
-/// JSON-RPC response. Notifications have no id and are handled separately.
-struct JSONRPCResponse: Decodable, Sendable {
-    // Codex CLI 0.152.x omits jsonrpc on responses even though requests use
-    // JSON-RPC framing, so this field must remain optional for compatibility.
-    let jsonrpc: String?
-    let id: Int?
-    let method: String?
-    let params: JSONValue?
-    let result: JSONValue?
-    let error: JSONRPCRemoteError?
+/// JSON-RPC response. Codex CLI 0.152.x omits jsonrpc on responses, so it is
+/// optional even though the client still sends the standard request field.
+public struct JSONRPCResponse: Decodable, Sendable {
+    public let jsonrpc: String?
+    public let id: Int?
+    public let method: String?
+    public let params: JSONValue?
+    public let result: JSONValue?
+    public let error: JSONRPCRemoteError?
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        jsonrpc = try container.decodeIfPresent(String.self, forKey: .jsonrpc)
+        id = try container.decodeIfPresent(Int.self, forKey: .id)
+        method = try container.decodeIfPresent(String.self, forKey: .method)
+        params = try container.decodeIfPresent(JSONValue.self, forKey: .params)
+        result = try container.decodeIfPresent(JSONValue.self, forKey: .result)
+        error = try container.decodeIfPresent(JSONRPCRemoteError.self, forKey: .error)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case jsonrpc, id, method, params, result, error
+    }
 }
 
 /// JSON-RPC error payload returned by app-server.
-struct JSONRPCRemoteError: Decodable, Sendable, Error {
-    let code: Int
-    let message: String
-    let data: JSONValue?
+public struct JSONRPCRemoteError: Decodable, Sendable, Error {
+    public let code: Int
+    public let message: String
+    public let data: JSONValue?
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decode(Int.self, forKey: .code)
+        message = try container.decode(String.self, forKey: .message)
+        data = try container.decodeIfPresent(JSONValue.self, forKey: .data)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case code, message, data
+    }
 }
 
 /// Sanitized local transport failures; raw process output is never included.
-enum JSONRPCError: LocalizedError, Sendable {
+public enum JSONRPCError: LocalizedError, Sendable {
     case invalidMessage
     case transportNotStarted
     case processExited
@@ -92,7 +122,7 @@ enum JSONRPCError: LocalizedError, Sendable {
     case timeout
     case encodingFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .invalidMessage: return "收到无法解析的 app-server 消息"
         case .transportNotStarted: return "app-server 尚未启动"

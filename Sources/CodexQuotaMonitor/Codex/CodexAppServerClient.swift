@@ -1,21 +1,26 @@
 import Foundation
 import os
+import CodexQuotaCore
 
 /// Errors mapped to user-facing states while keeping process details private.
 enum CodexClientError: LocalizedError, Sendable {
     case notInstalled
     case notAuthenticated
-    case remote(String)
-    case invalidResponse
+    case appServerStartFailed
+    case initializeFailed
+    case rateLimitsReadFailed
+    case unrecognizedResponse
     case transport(Error)
 
     var errorDescription: String? {
         switch self {
         case .notInstalled: return "未检测到 Codex CLI"
         case .notAuthenticated: return "Codex 尚未登录"
-        case .remote(let message): return message
-        case .invalidResponse: return "Codex 返回了无法识别的额度数据"
-        case .transport(let error): return error.localizedDescription
+        case .appServerStartFailed: return "app-server 启动失败"
+        case .initializeFailed: return "Codex 初始化握手失败"
+        case .rateLimitsReadFailed: return "额度请求失败"
+        case .unrecognizedResponse: return "服务器返回结构无法识别"
+        case .transport: return "Codex app-server 通信失败"
         }
     }
 }
@@ -34,18 +39,44 @@ actor CodexAppServerClient {
     func fetchRateLimits() async throws -> [QuotaBucket] {
         do {
             try await ensureReady()
-            let response = try await transport.request(method: "account/rateLimits/read")
+            var response: JSONRPCResponse
+            do {
+                // Reset-credit details are not needed by the quota card and
+                // would add unnecessary response data to every refresh.
+                response = try await transport.request(
+                    method: "account/rateLimits/read",
+                    params: .object(["excludeResetCreditDetails": .bool(true)])
+                )
+            } catch {
+                throw CodexClientError.rateLimitsReadFailed
+            }
+            if response.error?.code == -32600 {
+                // Codex CLI 0.152.x still expects a unit/empty parameter for
+                // this method. Retry once without params for that schema only.
+                logger.debug("rate limit request params rejected; retrying without params")
+                do {
+                    response = try await transport.request(method: "account/rateLimits/read")
+                } catch {
+                    throw CodexClientError.rateLimitsReadFailed
+                }
+            }
             if let error = response.error {
                 if isAuthenticationError(error) {
                     throw CodexClientError.notAuthenticated
                 }
-                throw CodexClientError.remote("额度请求失败：\(error.message)")
+                throw CodexClientError.rateLimitsReadFailed
             }
             guard let result = response.result else {
-                throw CodexClientError.invalidResponse
+                throw CodexClientError.unrecognizedResponse
             }
 
-            let buckets = RateLimitParser.parse(result: result)
+            let parsed = RateLimitParser.parseDetailed(result: result)
+            logger.debug("rate limit response diagnostic: \(parsed.diagnostic.summary, privacy: .public)")
+            if parsed.buckets.isEmpty && !parsed.diagnostic.hasRecognizedRateLimitKeys && parsed.diagnostic.source == .none {
+                throw CodexClientError.unrecognizedResponse
+            }
+
+            let buckets = parsed.buckets
             logger.debug("rate limit refresh succeeded")
             return buckets
         } catch let error as CodexClientError {
@@ -56,9 +87,7 @@ actor CodexAppServerClient {
         } catch {
             await transport.stop()
             isInitialized = false
-            let mapped: CodexClientError = (error as? CodexResolverError) == .notFound
-                ? .notInstalled
-                : .transport(error)
+            let mapped: CodexClientError = .transport(error)
             logger.error("rate limit refresh failed: \(self.logCategory(for: mapped), privacy: .public)")
             throw mapped
         }
@@ -91,16 +120,31 @@ actor CodexAppServerClient {
                     "experimentalApi": .bool(true)
                 ])
             ])
-            let response = try await transport.request(method: "initialize", params: initialize)
-            if let error = response.error {
-                throw CodexClientError.remote("Codex 初始化失败：\(error.message)")
+            let response: JSONRPCResponse
+            do {
+                response = try await transport.request(method: "initialize", params: initialize)
+            } catch {
+                throw CodexClientError.initializeFailed
             }
-            try await transport.sendNotification(method: "initialized", params: .object([:]))
+            if let error = response.error {
+                if isAuthenticationError(error) {
+                    throw CodexClientError.notAuthenticated
+                }
+                throw CodexClientError.initializeFailed
+            }
+            do {
+                try await transport.sendNotification(method: "initialized", params: .object([:]))
+            } catch {
+                throw CodexClientError.initializeFailed
+            }
             isInitialized = true
             logger.debug("initialize succeeded")
-        } catch {
+        } catch let error as CodexClientError {
             await transport.stop()
             throw error
+        } catch {
+            await transport.stop()
+            throw CodexClientError.appServerStartFailed
         }
     }
 
@@ -114,8 +158,10 @@ actor CodexAppServerClient {
         switch error {
         case .notInstalled: return "codex_not_installed"
         case .notAuthenticated: return "codex_not_authenticated"
-        case .remote: return "remote_error"
-        case .invalidResponse: return "invalid_response"
+        case .appServerStartFailed: return "app_server_start_failed"
+        case .initializeFailed: return "initialize_failed"
+        case .rateLimitsReadFailed: return "rate_limits_read_failed"
+        case .unrecognizedResponse: return "unrecognized_response"
         case .transport: return "transport_error"
         }
     }

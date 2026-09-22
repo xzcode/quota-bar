@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CodexQuotaCore
 
 /// User-visible connection and quota status.
 enum QuotaStatus: Equatable, Sendable {
@@ -11,6 +12,10 @@ enum QuotaStatus: Equatable, Sendable {
     case serviceError
     case notInstalled
     case noWindows
+    case appServerStartFailed
+    case initializeFailed
+    case rateLimitsReadFailed
+    case unrecognizedResponse
 
     var label: String {
         switch self {
@@ -22,6 +27,10 @@ enum QuotaStatus: Equatable, Sendable {
         case .serviceError: return "Codex 服务异常"
         case .notInstalled: return "未检测到 Codex CLI"
         case .noWindows: return "未返回额度窗口"
+        case .appServerStartFailed: return "app-server 启动失败"
+        case .initializeFailed: return "Codex 初始化失败"
+        case .rateLimitsReadFailed: return "额度请求失败"
+        case .unrecognizedResponse: return "额度响应无法识别"
         }
     }
 
@@ -29,7 +38,7 @@ enum QuotaStatus: Equatable, Sendable {
         switch self {
         case .normal: return .green
         case .low: return .yellow
-        case .critical, .serviceError, .notAuthenticated, .notInstalled: return .red
+        case .critical, .serviceError, .notAuthenticated, .notInstalled, .appServerStartFailed, .initializeFailed, .rateLimitsReadFailed, .unrecognizedResponse: return .red
         case .loading, .noWindows: return .secondary
         }
     }
@@ -60,7 +69,9 @@ final class QuotaViewModel: ObservableObject {
     /// Refreshes from app-server and preserves a cached snapshot after errors.
     @discardableResult
     func refresh(manual: Bool) async -> Bool {
-        guard !isRefreshing || manual else { return false }
+        // Manual refreshes share the same in-flight request instead of
+        // opening a second app-server RPC while the scheduler is working.
+        guard !isRefreshing else { return false }
         isRefreshing = true
         errorMessage = nil
         defer { isRefreshing = false }
@@ -125,7 +136,7 @@ final class QuotaViewModel: ObservableObject {
     private func statusForCurrentSnapshot() -> QuotaStatus {
         guard let minimum = allWindows.map(\.remainingPercent).min() else { return .noWindows }
         if minimum <= 10 { return .critical }
-        if minimum <= 50 { return .low }
+        if minimum <= 25 { return .low }
         return .normal
     }
 
@@ -133,7 +144,11 @@ final class QuotaViewModel: ObservableObject {
         switch error {
         case .notInstalled: return .notInstalled
         case .notAuthenticated: return .notAuthenticated
-        case .remote, .invalidResponse, .transport: return .serviceError
+        case .appServerStartFailed: return .appServerStartFailed
+        case .initializeFailed: return .initializeFailed
+        case .rateLimitsReadFailed: return .rateLimitsReadFailed
+        case .unrecognizedResponse: return .unrecognizedResponse
+        case .transport: return .serviceError
         }
     }
 }
