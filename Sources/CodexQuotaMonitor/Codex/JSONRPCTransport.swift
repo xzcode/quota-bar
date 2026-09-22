@@ -142,7 +142,7 @@ actor JSONRPCTransport {
     private func responseErrorMethod(_ response: JSONRPCResponse) -> String {
         // Notifications have no standard response field. This marker is
         // sufficient for future refresh-trigger handling without assumptions.
-        response.error?.message ?? "notification"
+        response.method ?? response.error?.message ?? "notification"
     }
 
     private func timeout(requestID: Int) {

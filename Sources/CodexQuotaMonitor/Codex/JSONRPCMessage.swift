@@ -66,8 +66,12 @@ struct JSONRPCRequest: Encodable, Sendable {
 
 /// JSON-RPC response. Notifications have no id and are handled separately.
 struct JSONRPCResponse: Decodable, Sendable {
-    let jsonrpc: String
+    // Codex CLI 0.152.x omits jsonrpc on responses even though requests use
+    // JSON-RPC framing, so this field must remain optional for compatibility.
+    let jsonrpc: String?
     let id: Int?
+    let method: String?
+    let params: JSONValue?
     let result: JSONValue?
     let error: JSONRPCRemoteError?
 }
