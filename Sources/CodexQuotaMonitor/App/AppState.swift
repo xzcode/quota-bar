@@ -99,7 +99,7 @@ final class AppState: ObservableObject {
 
     var menuBarTitle: String {
         guard showMenuBarPercentage else { return "Codex" }
-        return "C (quotaViewModel.menuBarPercentageText)"
+        return "C \(quotaViewModel.menuBarPercentageText)"
     }
 
     private func restartScheduler() {

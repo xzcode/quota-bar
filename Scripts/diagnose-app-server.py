@@ -10,12 +10,48 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import select
 import shutil
 import subprocess
 import sys
 import time
 from typing import Any
+
+
+class DiagnosticFailure(RuntimeError):
+    """Structured, safe failure emitted instead of raw process output."""
+
+    def __init__(self, phase: str, status: str, message: str, code: int | None = None):
+        super().__init__(message)
+        self.phase = phase
+        self.status = status
+        self.message = redact(message)
+        self.code = code
+
+
+def redact(message: str) -> str:
+    """Remove common credential, identifier, and header value patterns."""
+    value = message.replace("\r", " ").replace("\n", " ")
+    labeled = re.compile(
+        r"(?i)\b(authorization|cookie|access[_-]?token|refresh[_-]?token|id[_-]?token|token|account[_-]?id|account\s+id|user[_-]?id|user\s+id)\s*[:=]\s*(\"[^\"]*\"|'[^']*'|[^\s,;]+)"
+    )
+    value = labeled.sub(r"\1=<redacted>", value)
+    value = re.sub(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+", "Bearer <redacted>", value)
+    value = re.sub(r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b", "<redacted>", value)
+    value = re.sub(r"(?i)\bauth\.json\b", "<redacted-file>", value)
+    return value[:300] if value else "unknown error"
+
+
+def failure_summary(failure: DiagnosticFailure) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "phase": failure.phase,
+        "status": failure.status,
+        "errorMessage": failure.message,
+    }
+    if failure.code is not None:
+        summary["errorCode"] = failure.code
+    return summary
 
 
 def find_codex(custom_path: str | None) -> str:
@@ -34,8 +70,11 @@ def find_codex(custom_path: str | None) -> str:
 
 def send(process: subprocess.Popen[str], message: dict[str, Any]) -> None:
     assert process.stdin is not None
-    process.stdin.write(json.dumps(message, separators=(",", ":")) + "\n")
-    process.stdin.flush()
+    try:
+        process.stdin.write(json.dumps(message, separators=(",", ":")) + "\n")
+        process.stdin.flush()
+    except BrokenPipeError as error:
+        raise DiagnosticFailure("send", "brokenPipe", "communication pipe closed") from error
 
 
 def read_response(process: subprocess.Popen[str], request_id: int, timeout: float = 10.0) -> dict[str, Any]:
@@ -48,14 +87,14 @@ def read_response(process: subprocess.Popen[str], request_id: int, timeout: floa
             break
         line = process.stdout.readline()
         if not line:
-            break
+            raise DiagnosticFailure("read", "processExit", "app-server process exited")
         try:
             message = json.loads(line)
         except json.JSONDecodeError:
             continue
         if message.get("id") == request_id:
             return message
-    raise RuntimeError(f"timeout waiting for response id {request_id}")
+    raise DiagnosticFailure("read", "timeout", "request timed out")
 
 
 def window_summary(window: Any) -> dict[str, Any] | None:
@@ -131,7 +170,10 @@ def main() -> int:
             })
             initialize = read_response(process, 1)
             if "error" in initialize:
-                print(json.dumps({"phase": "initialize", "errorCode": initialize["error"].get("code")}, indent=2))
+                error = initialize["error"]
+                print(json.dumps(failure_summary(DiagnosticFailure(
+                    "initialize", "rpcError", error.get("message", "initialize RPC failed"), error.get("code")
+                )), indent=2, ensure_ascii=False))
                 return 1
 
             send(process, {"jsonrpc": "2.0", "method": "initialized", "params": {}})
@@ -154,18 +196,31 @@ def main() -> int:
                 response = read_response(process, 3)
                 request_mode = "withoutParams"
             if "error" in response:
-                print(json.dumps({"phase": "account/rateLimits/read", "errorCode": response["error"].get("code"), "requestMode": request_mode}, indent=2))
+                error = response["error"]
+                summary = failure_summary(DiagnosticFailure(
+                    "account/rateLimits/read", "rpcError", error.get("message", "rate-limit RPC failed"), error.get("code")
+                ))
+                summary["requestMode"] = request_mode
+                print(json.dumps(summary, indent=2, ensure_ascii=False))
                 return 1
 
             summary = safe_result_summary(response.get("result"))
+            summary["status"] = "success"
             summary["requestMode"] = request_mode
             print(json.dumps(summary, indent=2, ensure_ascii=False))
             return 0
         finally:
             process.terminate()
-            process.wait(timeout=3)
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
+    except DiagnosticFailure as error:
+        print(json.dumps(failure_summary(error), indent=2, ensure_ascii=False))
+        return 1
     except Exception as error:  # noqa: BLE001 - diagnostic must return a safe short error.
-        print(f"diagnostic failed: {error}", file=sys.stderr)
+        print(json.dumps({"phase": "diagnostic", "status": "failure", "errorMessage": redact(str(error))}, ensure_ascii=False))
         return 1
 
 
