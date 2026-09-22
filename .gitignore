@@ -1,0 +1,9 @@
+# SwiftPM build products and local IDE state.
+.build/
+.swiftpm/
+
+# Locally generated application bundle.
+dist/
+
+# macOS metadata.
+.DS_Store
