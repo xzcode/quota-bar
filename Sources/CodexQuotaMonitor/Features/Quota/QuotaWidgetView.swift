@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import CodexQuotaCore
 
-/// Compact translucent desktop card shown inside the borderless NSPanel.
+/// Compact/expanded quota widget shown inside the single borderless NSPanel.
 struct QuotaWidgetView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var viewModel: QuotaViewModel
@@ -12,6 +12,43 @@ struct QuotaWidgetView: View {
     }
 
     var body: some View {
+        Group {
+            if appState.presentationState == .collapsed {
+                collapsedContent
+            } else {
+                expandedContent
+            }
+        }
+        .frame(
+            width: appState.presentationState.panelSize.width,
+            height: appState.presentationState.panelSize.height
+        )
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: appState.presentationState)
+    }
+
+    /// Phase 1 keeps the compact state intentionally quiet; particles and the
+    /// animated gradient belong to the later visual-polish phase.
+    private var collapsedContent: some View {
+        Text(viewModel.menuBarPercentageText)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
+            .contentShape(Capsule())
+            .onTapGesture {
+                appState.setPresentationState(.expanded)
+            }
+            .help("展开额度详情")
+            .preferredColorScheme(.dark)
+    }
+
+    private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
@@ -31,8 +68,7 @@ struct QuotaWidgetView: View {
             footer
         }
         .padding(18)
-        .frame(width: 330)
-        .frame(minHeight: 190)
+        .frame(width: 330, height: 210)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -48,6 +84,14 @@ struct QuotaWidgetView: View {
                 .font(.title3.weight(.bold))
             Spacer()
             Button {
+                appState.setPresentationState(.collapsed)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(.plain)
+            .help("收起额度详情")
+
+            Button {
                 appState.refreshNow()
             } label: {
                 Image(systemName: viewModel.isRefreshing ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
@@ -57,7 +101,7 @@ struct QuotaWidgetView: View {
             .disabled(viewModel.isRefreshing)
 
             Menu {
-                Button("显示/隐藏桌面挂件") { appState.togglePanel() }
+                Button("收起") { appState.setPresentationState(.collapsed) }
                 SettingsLink { Text("设置") }
                 Divider()
                 Button("退出") { AppDelegate.requestTermination() }

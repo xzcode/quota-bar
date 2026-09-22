@@ -10,6 +10,7 @@ final class AppState: ObservableObject {
     let quotaViewModel: QuotaViewModel
 
     @Published private(set) var isPanelVisible = true
+    @Published private(set) var presentationState: WidgetPresentationState
     @Published var alwaysOnTop: Bool {
         didSet {
             UserDefaults.standard.set(alwaysOnTop, forKey: SettingsKey.alwaysOnTop)
@@ -40,6 +41,8 @@ final class AppState: ObservableObject {
 
     private init() {
         alwaysOnTop = UserDefaults.standard.object(forKey: SettingsKey.alwaysOnTop) as? Bool ?? false
+        presentationState = UserDefaults.standard.string(forKey: SettingsKey.widgetPresentationState)
+            .flatMap(WidgetPresentationState.init(rawValue:)) ?? .collapsed
         launchAtLogin = UserDefaults.standard.object(forKey: SettingsKey.launchAtLogin) as? Bool ?? false
         showMenuBarPercentage = UserDefaults.standard.object(forKey: SettingsKey.showMenuBarPercentage) as? Bool ?? true
         refreshInterval = UserDefaults.standard.object(forKey: SettingsKey.refreshInterval) as? TimeInterval ?? 60
@@ -88,6 +91,19 @@ final class AppState: ObservableObject {
             floatingPanelController.show()
         }
         isPanelVisible.toggle()
+    }
+
+    /// Expands or collapses the existing panel without creating another window.
+    func togglePresentationState() {
+        setPresentationState(presentationState == .collapsed ? .expanded : .collapsed)
+    }
+
+    /// Persists the presentation choice and keeps the panel's top edge stable.
+    func setPresentationState(_ state: WidgetPresentationState) {
+        guard presentationState != state else { return }
+        presentationState = state
+        UserDefaults.standard.set(state.rawValue, forKey: SettingsKey.widgetPresentationState)
+        floatingPanelController.setPresentationState(state, animated: true)
     }
 
     /// Performs an immediate user-requested refresh.
@@ -139,6 +155,7 @@ enum SettingsKey {
     static let launchAtLogin = "settings.launchAtLogin"
     static let showMenuBarPercentage = "settings.showMenuBarPercentage"
     static let refreshInterval = "settings.refreshInterval"
+    static let widgetPresentationState = "settings.widgetPresentationState"
     static let customCodexPath = "settings.customCodexPath"
     static let cachedSnapshot = "cache.quotaSnapshot"
 }
