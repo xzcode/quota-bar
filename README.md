@@ -1,4 +1,4 @@
-# Codex Quota Monitor
+# QuotaBar
 
 一个使用 Swift 6、SwiftUI 和 AppKit 实现的 macOS 14+ Codex 额度桌面挂件与菜单栏应用。
 
@@ -16,7 +16,7 @@
 
 ```bash
 swift build
-swift run CodexQuotaMonitor
+swift run QuotaBar
 ```
 
 协议诊断（只输出 rate-limit 字段结构，不输出认证信息）：
@@ -28,19 +28,19 @@ swift run CodexQuotaMonitor
 运行纯协议测试：
 
 ```bash
-swift run CodexQuotaMonitorTests
+swift run QuotaBarTests
 ```
 
 生成可双击运行的 `.app`：
 
 ```bash
 ./Scripts/package-app.sh
-open dist/CodexQuotaMonitor.app
+open dist/QuotaBar.app
 ```
 
 打包脚本会将 SwiftPM release binary 放入应用包，并设置 `LSUIElement`，因此应用默认不显示 Dock 图标。
 
-桌面挂件默认置顶显示在普通应用窗口上方，并加入所有桌面空间和全屏空间。若挂件被隐藏，可点击菜单栏的 Codex 图标并选择“置顶显示桌面挂件”；“设置 → 窗口 → 始终置顶”可关闭此行为。
+桌面挂件默认置顶显示在普通应用窗口上方，并加入所有桌面空间和全屏空间。若挂件被隐藏，可点击菜单栏的 QuotaBar 图标并选择“置顶显示桌面挂件”；“设置 → 窗口 → 始终置顶”可关闭此行为。
 
 ## Codex CLI 要求
 
@@ -86,7 +86,7 @@ codex login
 
 ```bash
 swift build
-swift run CodexQuotaMonitor
+swift run QuotaBar
 ```
 
 应用只记录已清理的生命周期信息，例如 app-server 启动、握手成功、刷新成功或失败；不会打印 access token、认证文件内容或完整账户凭据。
@@ -102,7 +102,7 @@ V1 优先解析当前规格中的 `result.rateLimitsByLimitId`，不存在、为
 ## 项目结构
 
 ```text
-Sources/CodexQuotaMonitor/
+Sources/QuotaBar/
 ├── App/          应用入口、生命周期和共享状态
 ├── Codex/        CLI 发现、JSON-RPC transport、额度解析
 ├── Features/     额度卡片、菜单栏、设置
@@ -110,4 +110,6 @@ Sources/CodexQuotaMonitor/
 └── Window/       NSPanel 与窗口位置持久化
 ```
 
-核心解析、格式化和 JSON-RPC response 兼容性由 `CodexQuotaMonitorTests` runner 覆盖。当前机器仅安装 Command Line Tools，没有 XCTest/Swift Testing，因此使用无第三方依赖的 SwiftPM executable runner，并通过 `swift run CodexQuotaMonitorTests` 执行。
+核心解析、格式化和 JSON-RPC response 兼容性由 `QuotaBarTests` runner 覆盖。当前机器仅安装 Command Line Tools，没有 XCTest/Swift Testing，因此使用无第三方依赖的 SwiftPM executable runner，并通过 `swift run QuotaBarTests` 执行。
+
+应用重命名为 QuotaBar 时保留原 bundle identifier `com.codex.quotamonitor` 和现有偏好键，因此原有窗口位置、显示模式、置顶与启动设置继续兼容。

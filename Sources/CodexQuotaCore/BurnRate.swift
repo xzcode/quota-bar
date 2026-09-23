@@ -31,20 +31,53 @@ public enum BurnRateLevel: String, Codable, Equatable, Sendable {
         }
     }
 
-    /// Particle count stays below the desktop-widget performance budget.
-    public var particleCount: Int {
+    /// Background dots stay numerous but dimmer than the moving energy particles.
+    public var backgroundParticleCount: Int {
         switch self {
-        case .calm: return 7
-        case .active: return 9
-        case .fast: return 11
-        case .veryFast: return 13
+        case .calm: return 5
+        case .active: return 7
+        case .fast: return 8
+        case .veryFast: return 9
+        }
+    }
+
+    /// Limits bright moving particles to one or two per frame.
+    public var energyParticleCount: Int {
+        switch self {
+        case .calm: return 0
+        case .active: return 1
+        case .fast, .veryFast: return 2
+        }
+    }
+
+    /// Short trails are reserved for the two highest activity levels.
+    public var trailCount: Int {
+        switch self {
+        case .calm, .active: return 0
+        case .fast: return 2
+        case .veryFast: return 3
+        }
+    }
+
+    /// Includes static dots, energy particles, and trail marks.
+    public var particleCount: Int {
+        backgroundParticleCount + energyParticleCount + trailCount
+    }
+
+    /// Returns nil for calm so the compact UI can avoid creating a TimelineView.
+    public var animationFrameInterval: TimeInterval? {
+        switch self {
+        case .calm: return nil
+        case .active: return 1.0 / 12.0
+        case .fast: return 1.0 / 18.0
+        case .veryFast: return 1.0 / 24.0
         }
     }
 
     /// Approximate seconds for a particle to cross the compact bar.
     public var particleTravelSeconds: Double {
         switch self {
-        case .calm: return 11
+        case .calm: return 0
         case .active: return 6.5
         case .fast: return 4
         case .veryFast: return 2.4
@@ -54,20 +87,20 @@ public enum BurnRateLevel: String, Codable, Equatable, Sendable {
     /// Small gradient movement multiplier; it is independent of danger color.
     public var gradientSpeed: Double {
         switch self {
-        case .calm: return 0.018
-        case .active: return 0.035
-        case .fast: return 0.06
-        case .veryFast: return 0.09
+        case .calm: return 0
+        case .active: return 0.08
+        case .fast: return 0.14
+        case .veryFast: return 0.22
         }
     }
 
     /// Burn rate changes highlight strength without changing danger colors.
     public var particleOpacityMultiplier: Double {
         switch self {
-        case .calm: return 0.85
-        case .active: return 0.98
-        case .fast: return 1.12
-        case .veryFast: return 1.25
+        case .calm: return 0.68
+        case .active: return 0.90
+        case .fast: return 1.05
+        case .veryFast: return 1.20
         }
     }
 }

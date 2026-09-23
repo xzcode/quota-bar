@@ -39,7 +39,7 @@ Scripts/diagnose-app-server.py
 文件：
 
 ```text
-Sources/CodexQuotaMonitor/App/AppState.swift
+Sources/QuotaBar/App/AppState.swift
 ```
 
 当前：
@@ -86,7 +86,7 @@ ALL_PROXY=socks5://127.0.0.1:7891 \
 
 ```bash
 swift build
-swift run CodexQuotaMonitorTests
+swift run QuotaBarTests
 ```
 
 ## 5. 完成后停止开发，只报告结果
@@ -109,7 +109,7 @@ SOCKS proxy 7891:
 swift build:
 PASS / FAIL
 
-CodexQuotaMonitorTests:
+QuotaBarTests:
 PASS / FAIL
 ```
 

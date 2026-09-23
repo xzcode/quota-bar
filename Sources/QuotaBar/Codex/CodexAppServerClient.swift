@@ -65,7 +65,7 @@ enum CodexClientError: LocalizedError, Sendable {
 actor CodexAppServerClient {
     private let resolver: CodexExecutableResolver
     private let transport = JSONRPCTransport()
-    private let logger = Logger(subsystem: "CodexQuotaMonitor", category: "app-server")
+    private let logger = Logger(subsystem: "QuotaBar", category: "app-server")
     private var isInitialized = false
 
     init(resolver: CodexExecutableResolver) {

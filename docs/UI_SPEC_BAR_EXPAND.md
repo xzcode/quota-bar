@@ -42,9 +42,9 @@ Quota Bar 不应只是一个静态额度面板，而应成为一个“常驻桌�
 默认状态，推荐尺寸：
 
 ```text
-width: 260 pt
-height: 24 pt
-cornerRadius: 12 pt
+width: 240 pt
+height: 28 pt
+cornerRadius: 14 pt
 ```
 
 示意：
@@ -168,7 +168,7 @@ Collapsed 和 Expanded 都必须支持拖动空白区域移动挂件。按钮、
 
 建议：窗口 frame 平滑变化、内容轻微 crossfade、cornerRadius 小幅变化。
 
-Collapsed：`260 × 24`  
+Collapsed：`240 × 28`
 Expanded：`330 × ~200`
 
 动画时窗口顶部位置尽量保持不跳动。
@@ -731,7 +731,7 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 
 ```bash
 swift build
-swift run CodexQuotaMonitorTests
+swift run QuotaBarTests
 ```
 
 然后实际启动程序确认：

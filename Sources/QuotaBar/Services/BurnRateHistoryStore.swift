@@ -1,6 +1,12 @@
 import Foundation
 import CodexQuotaCore
 
+/// Couples the rolling burn-rate estimate with a newly observed usage change.
+struct BurnRateUpdate {
+    let snapshot: BurnRateSnapshot
+    let didIncreaseUsage: Bool
+}
+
 /// Persists a small, credential-free history used only for local animation.
 struct BurnRateHistoryStore {
     private static let storageKey = "cache.burnRateHistory.v1"
@@ -12,9 +18,9 @@ struct BurnRateHistoryStore {
     }
 
     /// Records the most dangerous visible window and returns its current rate.
-    mutating func record(snapshot: QuotaSnapshot) -> BurnRateSnapshot {
+    mutating func record(snapshot: QuotaSnapshot, previousSnapshot: QuotaSnapshot?) -> BurnRateUpdate {
         guard let selected = selectedWindow(in: snapshot) else {
-            return .unknown
+            return BurnRateUpdate(snapshot: .unknown, didIncreaseUsage: false)
         }
 
         var records = load()
@@ -46,7 +52,10 @@ struct BurnRateHistoryStore {
         let samples = records
             .filter { matches($0, bucketId: selected.bucketId, kind: selected.window.kind) }
             .map(\.sample)
-        return BurnRateCalculator.calculate(samples: samples, now: snapshot.capturedAt)
+        return BurnRateUpdate(
+            snapshot: BurnRateCalculator.calculate(samples: samples, now: snapshot.capturedAt),
+            didIncreaseUsage: observedUsageIncrease(from: previousSnapshot, to: snapshot)
+        )
     }
 
     /// Reconstructs a rate after restart without inventing a new sample.
@@ -93,6 +102,34 @@ struct BurnRateHistoryStore {
 
         // A meaningful drop in used percent is a reset, not negative burn.
         return current.usedPercent <= previous.sample.usedPercent - 10
+    }
+
+    /// Compares adjacent successful snapshots only, ignoring old cached usage deltas.
+    private func observedUsageIncrease(from previous: QuotaSnapshot?, to current: QuotaSnapshot) -> Bool {
+        guard let previous else { return false }
+        let elapsed = current.capturedAt.timeIntervalSince(previous.capturedAt)
+        guard elapsed >= 0, elapsed <= 10 * 60 else { return false }
+
+        return current.buckets.contains { currentBucket in
+            guard let previousBucket = previous.buckets.first(where: { $0.id == currentBucket.id }) else {
+                return false
+            }
+
+            return currentBucket.windows.contains { currentWindow in
+                guard let previousWindow = previousBucket.windows.first(where: {
+                    $0.id == currentWindow.id && $0.windowDurationMinutes == currentWindow.windowDurationMinutes
+                }) else {
+                    return false
+                }
+
+                if let oldReset = previousWindow.resetsAt,
+                   let newReset = currentWindow.resetsAt,
+                   abs(oldReset.timeIntervalSince(newReset)) > 60 {
+                    return false
+                }
+                return currentWindow.usedPercent > previousWindow.usedPercent
+            }
+        }
     }
 }
 

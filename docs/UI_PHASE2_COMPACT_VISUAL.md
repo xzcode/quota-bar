@@ -52,9 +52,9 @@ Phase 2 要把它升级为：
 保持：
 
 ```text
-width = 260 pt
-height = 24 pt
-cornerRadius = 12 pt
+width = 240 pt
+height = 28 pt
+cornerRadius = 14 pt
 ```
 
 如果当前 `WidgetPresentationState.collapsed.panelSize` 已经是这个尺寸，则不要改。
@@ -62,7 +62,7 @@ cornerRadius = 12 pt
 如果不是，以：
 
 ```swift
-CGSize(width: 260, height: 24)
+CGSize(width: 240, height: 28)
 ```
 
 为目标。
@@ -185,7 +185,7 @@ Phase 2 可以有非常轻的“能量流动感”，但不是 Burn Rate。
 
 ```text
 一条宽约 60~100 pt 的淡色 highlight
-从左向右缓慢穿过
+从右向左缓慢穿过
 ```
 
 效果：
@@ -589,7 +589,7 @@ Phase 2 只允许对 Expanded 做一个改动：
 建议新增：
 
 ```text
-Sources/CodexQuotaMonitor/Features/Widget/
+Sources/QuotaBar/Features/Widget/
     CompactQuotaBar.swift
 ```
 
@@ -702,7 +702,7 @@ Button
 
 ```bash
 swift build
-swift run CodexQuotaMonitorTests
+swift run QuotaBarTests
 git diff --check
 ```
 
@@ -754,7 +754,7 @@ account/rateLimits/read
 
 ```bash
 swift build
-swift run CodexQuotaMonitorTests
+swift run QuotaBarTests
 git diff --check
 ```
 

@@ -36,6 +36,7 @@ struct QuotaWidgetView: View {
             remaining: viewModel.collapsedDisplayRemainingPercent,
             quotaSummary: viewModel.collapsedQuotaSummary,
             burnRate: viewModel.burnRate,
+            isParticlePulseActive: viewModel.isParticlePulseActive,
             isStale: viewModel.isStale,
             reduceMotion: reduceMotion,
             isHovered: isHovered
@@ -135,6 +136,7 @@ struct QuotaWidgetView: View {
                 Image(systemName: "ellipsis")
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
         }
     }

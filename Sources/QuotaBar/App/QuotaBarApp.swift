@@ -2,7 +2,7 @@ import SwiftUI
 
 /// SwiftUI entry point for the menu-bar application.
 @main
-struct CodexQuotaMonitorApp: App {
+struct QuotaBarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState.shared
 

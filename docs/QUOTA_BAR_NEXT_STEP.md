@@ -23,7 +23,7 @@
 
 ```bash
 swift build
-swift run CodexQuotaMonitor
+swift run QuotaBar
 ```
 
 即可。只需要 macOS Command Line Tools / Swift toolchain；Xcode IDE 不是当前项目的必需品。
@@ -60,10 +60,10 @@ QuotaViewModel
 
 重点检查：
 
-- `Sources/CodexQuotaMonitor/Codex/CodexAppServerClient.swift`
-- `Sources/CodexQuotaMonitor/Codex/JSONRPCTransport.swift`
-- `Sources/CodexQuotaMonitor/Codex/RateLimitModels.swift`
-- `Sources/CodexQuotaMonitor/Features/Quota/QuotaViewModel.swift`
+- `Sources/QuotaBar/Codex/CodexAppServerClient.swift`
+- `Sources/QuotaBar/Codex/JSONRPCTransport.swift`
+- `Sources/QuotaBar/Codex/RateLimitModels.swift`
+- `Sources/QuotaBar/Features/Quota/QuotaViewModel.swift`
 
 ---
 
@@ -173,7 +173,7 @@ Scripts/diagnose-app-server.py
 文件：
 
 ```text
-Sources/CodexQuotaMonitor/Codex/RateLimitModels.swift
+Sources/QuotaBar/Codex/RateLimitModels.swift
 ```
 
 当前代码：
@@ -280,7 +280,7 @@ bucket[codex]:
 文件：
 
 ```text
-Sources/CodexQuotaMonitor/App/AppState.swift
+Sources/QuotaBar/App/AppState.swift
 ```
 
 当前：
@@ -306,7 +306,7 @@ return "C \(quotaViewModel.menuBarPercentageText)"
 文件：
 
 ```text
-Sources/CodexQuotaMonitor/Features/Quota/QuotaViewModel.swift
+Sources/QuotaBar/Features/Quota/QuotaViewModel.swift
 ```
 
 当前：
@@ -382,8 +382,8 @@ critical <= 10
 
 ```swift
 .testTarget(
-    name: "CodexQuotaMonitorTests",
-    dependencies: ["CodexQuotaMonitor"]
+    name: "QuotaBarTests",
+    dependencies: ["QuotaBar"]
 )
 ```
 
@@ -391,8 +391,8 @@ critical <= 10
 
 ```text
 CodexQuotaCore
-CodexQuotaMonitor
-CodexQuotaMonitorTests
+QuotaBar
+QuotaBarTests
 ```
 
 不要为了测试大规模重构。
@@ -590,7 +590,7 @@ swift build
 运行：
 
 ```bash
-swift run CodexQuotaMonitor
+swift run QuotaBar
 ```
 
 挂件正常启动。

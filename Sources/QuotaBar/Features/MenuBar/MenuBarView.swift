@@ -12,7 +12,7 @@ struct MenuBarView: View {
     }
 
     var body: some View {
-        Text("Codex Quota")
+        Text("QuotaBar")
             .font(.headline)
 
         if let bucket = viewModel.primaryBucket {

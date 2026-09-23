@@ -3,7 +3,7 @@ import CodexQuotaCore
 
 /// Dependency-free test runner used when only Apple's Command Line Tools are installed.
 @main
-struct CodexQuotaMonitorTests {
+struct QuotaBarTests {
     static func main() {
         let tests: [(String, () throws -> Void)] = [
             ("grouped primary and secondary windows", testGroupedWindows),

@@ -54,11 +54,13 @@ final class QuotaViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var transientNotice: String?
     @Published private(set) var burnRate: BurnRateSnapshot = .unknown
+    @Published private(set) var isParticlePulseActive = false
     @Published private(set) var diagnosticDetails: String? = nil
 
     private let client: CodexAppServerClient
     private let cache = QuotaCacheStore()
     private var burnRateHistory = BurnRateHistoryStore()
+    private var particleActivityTask: Task<Void, Never>?
 
     init(client: CodexAppServerClient) {
         self.client = client
@@ -82,10 +84,18 @@ final class QuotaViewModel: ObservableObject {
 
         do {
             let buckets = try await client.fetchRateLimits()
+            let previousSnapshot = snapshot
             let newSnapshot = QuotaSnapshot(buckets: buckets, capturedAt: .now)
             snapshot = newSnapshot
             cache.save(newSnapshot)
-            burnRate = burnRateHistory.record(snapshot: newSnapshot)
+            let burnRateUpdate = burnRateHistory.record(
+                snapshot: newSnapshot,
+                previousSnapshot: previousSnapshot
+            )
+            burnRate = burnRateUpdate.snapshot
+            if burnRateUpdate.didIncreaseUsage {
+                startParticleActivityPulse()
+            }
             isStale = false
             status = buckets.isEmpty ? .noWindows : statusForCurrentSnapshot()
             transientNotice = nil
@@ -107,6 +117,9 @@ final class QuotaViewModel: ObservableObject {
     }
 
     func stopClient() async {
+        particleActivityTask?.cancel()
+        particleActivityTask = nil
+        isParticlePulseActive = false
         await client.stop()
     }
 
@@ -216,6 +229,22 @@ final class QuotaViewModel: ObservableObject {
 
     var lastUpdatedText: String {
         QuotaFormatter.relativeUpdate(snapshot?.capturedAt)
+    }
+
+    /// Briefly signals fresh quota use without treating the rolling rate as live activity.
+    private func startParticleActivityPulse() {
+        particleActivityTask?.cancel()
+        isParticlePulseActive = true
+        particleActivityTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            self.isParticlePulseActive = false
+            self.particleActivityTask = nil
+        }
     }
 
     var staleMessage: String? {

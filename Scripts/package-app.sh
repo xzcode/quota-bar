@@ -6,16 +6,16 @@ set -euo pipefail
 script_dir="${0:A:h}"
 project_dir="${script_dir:h}"
 dist_dir="${project_dir}/dist"
-app_dir="${dist_dir}/CodexQuotaMonitor.app"
+app_dir="${dist_dir}/QuotaBar.app"
 contents_dir="${app_dir}/Contents"
 
 cd "${project_dir}"
-swift build -c release --product CodexQuotaMonitor
+swift build -c release --product QuotaBar
 bin_path="$(swift build -c release --show-bin-path)"
 
 mkdir -p "${contents_dir}/MacOS" "${contents_dir}/Resources"
-rm -f "${contents_dir}/MacOS/CodexQuotaMonitor"
-cp "${bin_path}/CodexQuotaMonitor" "${contents_dir}/MacOS/CodexQuotaMonitor"
+rm -f "${contents_dir}/MacOS/QuotaBar"
+cp "${bin_path}/QuotaBar" "${contents_dir}/MacOS/QuotaBar"
 cp "${project_dir}/Resources/Info.plist" "${contents_dir}/Info.plist"
 
 # Re-sign the completed bundle after Info.plist is present. SwiftPM's linker

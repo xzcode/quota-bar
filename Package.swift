@@ -5,12 +5,12 @@ import PackageDescription
 // The application intentionally has no third-party dependencies. All UI,
 // process management, persistence, and JSON-RPC code use Apple frameworks.
 let package = Package(
-    name: "CodexQuotaMonitor",
+    name: "QuotaBar",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "CodexQuotaMonitor", targets: ["CodexQuotaMonitor"])
+        .executable(name: "QuotaBar", targets: ["QuotaBar"])
     ],
     targets: [
         .target(
@@ -18,17 +18,17 @@ let package = Package(
             path: "Sources/CodexQuotaCore"
         ),
         .executableTarget(
-            name: "CodexQuotaMonitor",
+            name: "QuotaBar",
             dependencies: ["CodexQuotaCore"],
-            path: "Sources/CodexQuotaMonitor"
+            path: "Sources/QuotaBar"
         ),
         // The host has Command Line Tools without XCTest/Swift Testing, so
         // tests are a dependency-free executable runner instead of a framework
-        // test target. It remains runnable with `swift run CodexQuotaMonitorTests`.
+        // test target. It remains runnable with `swift run QuotaBarTests`.
         .executableTarget(
-            name: "CodexQuotaMonitorTests",
+            name: "QuotaBarTests",
             dependencies: ["CodexQuotaCore"],
-            path: "Tests/CodexQuotaMonitorTests"
+            path: "Tests/QuotaBarTests"
         )
     ]
 )

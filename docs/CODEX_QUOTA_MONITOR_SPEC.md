@@ -1,4 +1,4 @@
-# Codex Quota Monitor — macOS 桌面额度挂件开发规格
+# QuotaBar — macOS 桌面额度挂件开发规格
 
 > 版本：V1.0 MVP  
 > 平台：macOS 14+  
@@ -366,7 +366,7 @@ min(all visible remainingPercent)
 点击菜单栏展开：
 
 ```text
-Codex Quota
+QuotaBar
 
 5 小时   72%
 周额度   41%
@@ -421,9 +421,9 @@ Codex Quota
 建议目录：
 
 ```text
-CodexQuotaMonitor/
+QuotaBar/
 ├── App/
-│   ├── CodexQuotaMonitorApp.swift
+│   ├── QuotaBarApp.swift
 │   ├── AppDelegate.swift
 │   └── AppState.swift
 │
@@ -771,7 +771,7 @@ V1 必须满足全部条件才算完成。
 
 - [ ] App 在 macOS 14+ 可以正常启动。
 - [ ] 不显示普通 Dock 图标。
-- [ ] 菜单栏出现 Codex Quota Monitor。
+- [ ] 菜单栏出现 QuotaBar。
 - [ ] 桌面额度卡片正常显示。
 
 ### Codex 集成
@@ -880,7 +880,7 @@ README
 Codex 最终应交付：
 
 ```text
-CodexQuotaMonitor.app
+QuotaBar.app
 源码
 README.md
 基本单元测试

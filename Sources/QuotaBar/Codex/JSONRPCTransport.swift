@@ -4,7 +4,7 @@ import CodexQuotaCore
 
 /// Owns one app-server process and multiplexes line-delimited JSON-RPC calls.
 actor JSONRPCTransport {
-    private let logger = Logger(subsystem: "CodexQuotaMonitor", category: "transport")
+    private let logger = Logger(subsystem: "QuotaBar", category: "transport")
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?

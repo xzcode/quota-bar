@@ -1,0 +1,74 @@
+import SwiftUI
+
+/// Centralized quota colors keep danger state separate from burn-rate motion.
+enum QuotaVisualStyle {
+    private static let paletteStops = [
+        PaletteStop(remaining: 0, colors: [
+            RGBColor(red: 0.18, green: 0.06, blue: 0.30),
+            RGBColor(red: 0.44, green: 0.08, blue: 0.36),
+            RGBColor(red: 0.70, green: 0.12, blue: 0.36)
+        ]),
+        PaletteStop(remaining: 10, colors: [
+            RGBColor(red: 0.22, green: 0.06, blue: 0.34),
+            RGBColor(red: 0.50, green: 0.11, blue: 0.40),
+            RGBColor(red: 0.72, green: 0.12, blue: 0.42)
+        ]),
+        PaletteStop(remaining: 25, colors: [
+            RGBColor(red: 0.28, green: 0.12, blue: 0.58),
+            RGBColor(red: 0.72, green: 0.24, blue: 0.58),
+            RGBColor(red: 0.84, green: 0.38, blue: 0.22)
+        ]),
+        PaletteStop(remaining: 100, colors: [
+            RGBColor(red: 0.16, green: 0.30, blue: 0.78),
+            RGBColor(red: 0.28, green: 0.26, blue: 0.75),
+            RGBColor(red: 0.40, green: 0.22, blue: 0.72)
+        ])
+    ]
+
+    /// Interpolates palette stops continuously so quota changes do not jump at thresholds.
+    static func gradientColors(remaining: Double?, isStale: Bool) -> [Color] {
+        guard let remaining else {
+            let unknown = [Color.gray.opacity(0.55), Color.gray.opacity(0.38)]
+            return isStale ? unknown.map { $0.opacity(0.72) } : unknown
+        }
+
+        let bounded = max(0, min(100, remaining))
+        let lower = paletteStops.last(where: { $0.remaining <= bounded }) ?? paletteStops[0]
+        let upper = paletteStops.first(where: { $0.remaining >= bounded }) ?? paletteStops[paletteStops.count - 1]
+        let span = upper.remaining - lower.remaining
+        let progress = span > 0 ? (bounded - lower.remaining) / span : 0
+        let colors = zip(lower.colors, upper.colors).map { start, end in
+            start.interpolated(to: end, progress: progress).color
+        }
+        return isStale ? colors.map { $0.opacity(0.72) } : colors
+    }
+
+    static func progressColors(remaining: Int) -> [Color] {
+        gradientColors(remaining: Double(remaining), isStale: false)
+    }
+
+    /// One corresponding RGB gradient stop at a quota palette anchor.
+    private struct RGBColor {
+        let red: Double
+        let green: Double
+        let blue: Double
+
+        func interpolated(to other: RGBColor, progress: Double) -> RGBColor {
+            RGBColor(
+                red: red + (other.red - red) * progress,
+                green: green + (other.green - green) * progress,
+                blue: blue + (other.blue - blue) * progress
+            )
+        }
+
+        var color: Color {
+            Color(red: red, green: green, blue: blue)
+        }
+    }
+
+    /// Stores same-shaped palettes so each gradient stop can be interpolated safely.
+    private struct PaletteStop {
+        let remaining: Double
+        let colors: [RGBColor]
+    }
+}
