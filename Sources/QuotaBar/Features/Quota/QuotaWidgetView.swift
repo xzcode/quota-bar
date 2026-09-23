@@ -57,7 +57,11 @@ struct QuotaWidgetView: View {
             SettingsLink { Text("设置") }
             Button("复制诊断信息") { copyDiagnostics() }
 #if DEBUG
-            energyFXDemoMenu
+            Button("Energy FX · Calm") { viewModel.setEnergyDemoLevel(.calm) }
+            Button("Energy FX · Active") { viewModel.setEnergyDemoLevel(.active) }
+            Button("Energy FX · Fast") { viewModel.setEnergyDemoLevel(.fast) }
+            Button("Energy FX · Very Fast") { viewModel.setEnergyDemoLevel(.veryFast) }
+            Button("Energy FX · 使用真实 Token 活动") { viewModel.setEnergyDemoLevel(nil) }
 #endif
             Divider()
             Button("退出") { AppDelegate.requestTermination() }
@@ -137,7 +141,11 @@ struct QuotaWidgetView: View {
                 SettingsLink { Text("设置") }
                 Button("复制诊断信息") { copyDiagnostics() }
 #if DEBUG
-                energyFXDemoMenu
+                Button("Energy FX · Calm") { viewModel.setEnergyDemoLevel(.calm) }
+                Button("Energy FX · Active") { viewModel.setEnergyDemoLevel(.active) }
+                Button("Energy FX · Fast") { viewModel.setEnergyDemoLevel(.fast) }
+                Button("Energy FX · Very Fast") { viewModel.setEnergyDemoLevel(.veryFast) }
+                Button("Energy FX · 使用真实 Token 活动") { viewModel.setEnergyDemoLevel(nil) }
 #endif
                 Divider()
                 Button("退出") { AppDelegate.requestTermination() }
@@ -201,17 +209,6 @@ struct QuotaWidgetView: View {
         NSPasteboard.general.setString(viewModel.diagnosticText, forType: .string)
     }
 
-#if DEBUG
-    /// Exposes all energy tiers as direct menu items in Debug builds without changing actual token activity.
-    @ViewBuilder
-    private var energyFXDemoMenu: some View {
-        Button("Energy FX · Calm") { viewModel.setEnergyDemoLevel(.calm) }
-        Button("Energy FX · Active") { viewModel.setEnergyDemoLevel(.active) }
-        Button("Energy FX · Fast") { viewModel.setEnergyDemoLevel(.fast) }
-        Button("Energy FX · Very Fast") { viewModel.setEnergyDemoLevel(.veryFast) }
-        Button("Energy FX · 使用真实 Token 活动") { viewModel.setEnergyDemoLevel(nil) }
-    }
-#endif
 }
 
 /// Builds a fixed dark glass surface so desktop appearance never washes out the expanded card.
