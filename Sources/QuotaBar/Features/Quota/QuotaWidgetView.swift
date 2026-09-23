@@ -58,7 +58,8 @@ struct QuotaWidgetView: View {
             Button("复制诊断信息") { copyDiagnostics() }
 #if DEBUG
             Button("Energy FX · Calm") { viewModel.setEnergyDemoLevel(.calm) }
-            Button("Energy FX · Active") { viewModel.setEnergyDemoLevel(.active) }
+            Button("Energy FX · Slow") { viewModel.setEnergyDemoLevel(.slow) }
+            Button("Energy FX · Medium") { viewModel.setEnergyDemoLevel(.medium) }
             Button("Energy FX · Fast") { viewModel.setEnergyDemoLevel(.fast) }
             Button("Energy FX · Very Fast") { viewModel.setEnergyDemoLevel(.veryFast) }
             Button("Energy FX · 使用真实 Token 活动") { viewModel.setEnergyDemoLevel(nil) }
@@ -142,7 +143,8 @@ struct QuotaWidgetView: View {
                 Button("复制诊断信息") { copyDiagnostics() }
 #if DEBUG
                 Button("Energy FX · Calm") { viewModel.setEnergyDemoLevel(.calm) }
-                Button("Energy FX · Active") { viewModel.setEnergyDemoLevel(.active) }
+                Button("Energy FX · Slow") { viewModel.setEnergyDemoLevel(.slow) }
+                Button("Energy FX · Medium") { viewModel.setEnergyDemoLevel(.medium) }
                 Button("Energy FX · Fast") { viewModel.setEnergyDemoLevel(.fast) }
                 Button("Energy FX · Very Fast") { viewModel.setEnergyDemoLevel(.veryFast) }
                 Button("Energy FX · 使用真实 Token 活动") { viewModel.setEnergyDemoLevel(nil) }

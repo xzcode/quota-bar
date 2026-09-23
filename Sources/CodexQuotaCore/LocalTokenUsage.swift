@@ -3,16 +3,18 @@ import Foundation
 /// Visual activity based on real local token deltas, independent from quota burn rate.
 public enum TokenActivityLevel: String, Codable, Equatable, Sendable {
     case calm
-    case active
+    case slow
+    case medium
     case fast
     case veryFast
 
     public var label: String {
         switch self {
         case .calm: return "平稳"
-        case .active: return "活跃"
-        case .fast: return "较快"
-        case .veryFast: return "很快"
+        case .slow: return "慢"
+        case .medium: return "中"
+        case .fast: return "快"
+        case .veryFast: return "飞快"
         }
     }
 }
@@ -305,6 +307,8 @@ public struct LocalTokenUsageAccumulator: Sendable {
 
 /// Central thresholds keep token motion policy distinct from quota-based burn-rate policy.
 public enum TokenActivityPolicy {
+    /// Splits low-but-recent activity into slow and medium without moving fast-tier boundaries.
+    public static let mediumThreshold = 50_000.0
     public static let fastThreshold = 100_000.0
     public static let veryFastThreshold = 500_000.0
 
@@ -312,7 +316,8 @@ public enum TokenActivityPolicy {
         guard hasRecentUsage else { return .calm }
         if tokensPerMinute >= veryFastThreshold { return .veryFast }
         if tokensPerMinute >= fastThreshold { return .fast }
-        return .active
+        if tokensPerMinute >= mediumThreshold { return .medium }
+        return .slow
     }
 }
 

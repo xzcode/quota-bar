@@ -32,17 +32,31 @@ enum QuotaVisualStyle {
         }
     }
 
-    /// Dynamic energy hues stay separate from both the static capsule and quota fill palettes.
-    static func dynamicEnergyPalette(for state: QuotaDangerState) -> [Color] {
+    /// Supplies the subdued particle hues while the capsule base keeps its own danger palette.
+    static func softEnergyParticlePalette(for state: QuotaDangerState) -> [Color] {
         switch state {
         case .normal:
-            return [rgb(0x67, 0xD8, 0xFF), rgb(0x5B, 0x78, 0xFF), rgb(0x9B, 0x6B, 0xFF)]
+            return [rgb(0x55, 0xBF, 0xFF), rgb(0x55, 0x7B, 0xFF), rgb(0x7B, 0x5B, 0xFF)]
         case .low:
             return [rgb(0xA7, 0x72, 0xFF), rgb(0xC3, 0x5D, 0xE8), rgb(0xFF, 0xC3, 0x6A)]
         case .critical:
             return [rgb(0xFF, 0x6A, 0xD8), rgb(0xE5, 0x3D, 0x91), rgb(0xA4, 0x49, 0xFF)]
         case .unknown:
             return [rgb(0x83, 0xC8, 0xE8), rgb(0x78, 0x8B, 0xE8), rgb(0xA0, 0x7B, 0xD8)]
+        }
+    }
+
+    /// Uses pale tinted cores rather than pure white for the few bright particles.
+    static func brightEnergyParticlePalette(for state: QuotaDangerState) -> [Color] {
+        switch state {
+        case .normal:
+            return [rgb(0xC8, 0xF4, 0xFF), rgb(0xD6, 0xE6, 0xFF), rgb(0xE1, 0xD4, 0xFF)]
+        case .low:
+            return [rgb(0xE5, 0xD9, 0xFF), rgb(0xF4, 0xD7, 0xF3), rgb(0xFF, 0xE8, 0xC7)]
+        case .critical:
+            return [rgb(0xFF, 0xD9, 0xF1), rgb(0xFF, 0xD1, 0xDF), rgb(0xE8, 0xD8, 0xFF)]
+        case .unknown:
+            return [rgb(0xD8, 0xEE, 0xFF), rgb(0xD8, 0xDD, 0xFF), rgb(0xE9, 0xD7, 0xFF)]
         }
     }
 

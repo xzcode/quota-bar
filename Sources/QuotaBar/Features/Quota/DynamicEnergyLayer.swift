@@ -1,7 +1,7 @@
 import SwiftUI
 import CodexQuotaCore
 
-/// Composes every moving effect under CompactQuotaBar's single shared TimelineView clock.
+/// Keeps the compact motion to one soft glow and one Canvas particle stream.
 struct DynamicEnergyLayer: View {
     let level: TokenActivityLevel
     let elapsed: TimeInterval
@@ -9,8 +9,8 @@ struct DynamicEnergyLayer: View {
 
     var body: some View {
         ZStack {
-            AuroraStreamView(level: level, elapsed: elapsed, state: state)
-            CometFlowView(level: level, elapsed: elapsed, state: state)
+            SoftEnergyGlow(level: level, state: state)
+            DenseParticleStreamView(level: level, elapsed: elapsed, state: state)
         }
         .clipShape(Capsule())
         .allowsHitTesting(false)
