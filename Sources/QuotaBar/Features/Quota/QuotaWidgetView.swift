@@ -70,7 +70,7 @@ struct QuotaWidgetView: View {
                 if let name = bucket.name ?? bucket.normalModelSlug {
                     Text(name)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.64))
                 }
                 ForEach(bucket.windows) { window in
                     QuotaRowView(window: window)
@@ -84,12 +84,8 @@ struct QuotaWidgetView: View {
         }
         .padding(18)
         .frame(width: 330, height: 210)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.24), radius: 18, y: 8)
+        .background(ExpandedCardBackground())
+        .shadow(color: .black.opacity(0.27), radius: 20, y: 10)
         .preferredColorScheme(.dark)
     }
 
@@ -97,6 +93,7 @@ struct QuotaWidgetView: View {
         HStack(alignment: .firstTextBaseline) {
             Text("Codex")
                 .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.98))
             Spacer()
             Button {
                 appState.setPresentationState(.collapsed)
@@ -104,6 +101,7 @@ struct QuotaWidgetView: View {
                 Image(systemName: "chevron.up")
             }
             .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.78))
             .help("收起额度详情")
 
             Button {
@@ -113,6 +111,7 @@ struct QuotaWidgetView: View {
                     .rotationEffect(.degrees(viewModel.isRefreshing && !reduceMotion ? 360 : 0))
             }
             .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.78))
             .help("立即刷新")
             .disabled(viewModel.isRefreshing)
             .animation(
@@ -138,6 +137,7 @@ struct QuotaWidgetView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
+            .foregroundStyle(.white.opacity(0.78))
         }
     }
 
@@ -145,18 +145,20 @@ struct QuotaWidgetView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(viewModel.snapshot == nil ? "额度暂时不可用" : viewModel.status.label)
                 .font(.headline)
+                .foregroundStyle(.white.opacity(0.97))
             Text(viewModel.errorMessage ?? "当前账户未返回额度窗口")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.62))
             if viewModel.status == .notAuthenticated {
                 Text("请先在 Terminal 执行 codex login")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.50))
                 Button("复制命令") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString("codex login", forType: .string)
                 }
                 .buttonStyle(.borderless)
+                .foregroundStyle(.white.opacity(0.78))
             }
         }
     }
@@ -168,23 +170,93 @@ struct QuotaWidgetView: View {
                     .fill(viewModel.status.color)
                     .frame(width: 7, height: 7)
                 Text(viewModel.footerStatusText)
+                    .foregroundStyle(.white.opacity(0.76))
                 Spacer()
                 Text(viewModel.lastUpdatedText)
+                    .foregroundStyle(.white.opacity(0.50))
             }
             if let staleMessage = viewModel.staleMessage {
                 Text(staleMessage)
                     .font(.caption2)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.orange.opacity(0.95))
                     .lineLimit(2)
             }
         }
         .font(.caption)
-        .foregroundStyle(.secondary)
     }
 
     /// Copies only the sanitized, user-facing diagnostic summary.
     private func copyDiagnostics() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(viewModel.diagnosticText, forType: .string)
+    }
+}
+
+/// Builds a fixed dark glass surface so desktop appearance never washes out the expanded card.
+private struct ExpandedCardBackground: View {
+    private let cornerRadius: CGFloat = 20
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        ZStack {
+            shape.fill(
+                LinearGradient(
+                    colors: [rgb(0x15, 0x1A, 0x24), rgb(0x12, 0x15, 0x1B), rgb(0x18, 0x14, 0x21)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+
+            // Low-opacity radial glows add depth without tinting the dark base purple or blue.
+            GeometryReader { geometry in
+                ZStack {
+                    RadialGradient(
+                        colors: [rgb(0x45, 0x68, 0xC8).opacity(0.08), .clear],
+                        center: .topLeading,
+                        startRadius: 0,
+                        endRadius: geometry.size.width * 0.9
+                    )
+                    RadialGradient(
+                        colors: [rgb(0x76, 0x4A, 0xA8).opacity(0.06), .clear],
+                        center: .bottomTrailing,
+                        startRadius: 0,
+                        endRadius: geometry.size.width * 0.9
+                    )
+                }
+                .blur(radius: 26)
+            }
+            .clipShape(shape)
+
+            // A restrained top-edge highlight preserves the glass feel without a bright double rim.
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [.white.opacity(0.045), .white.opacity(0.008), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 2)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 1)
+            .clipShape(shape)
+
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [.white.opacity(0.11), rgb(0x91, 0x9D, 0xC5).opacity(0.08)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1
+            )
+
+            shape.inset(by: 1).stroke(.white.opacity(0.035), lineWidth: 1)
+        }
+    }
+
+    /// Converts byte-style RGB values to normalized SwiftUI color components.
+    private func rgb(_ red: Double, _ green: Double, _ blue: Double) -> Color {
+        Color(red: red / 255, green: green / 255, blue: blue / 255)
     }
 }

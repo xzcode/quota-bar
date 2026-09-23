@@ -13,7 +13,7 @@ struct BurnRateIndicator: View {
             Spacer()
         }
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.white.opacity(0.54))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("消耗速度：\(snapshot.level.label)")
     }

@@ -10,16 +10,18 @@ struct QuotaRowView: View {
             HStack {
                 Text(QuotaFormatter.windowTitle(minutes: window.windowDurationMinutes))
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.94))
                 Spacer()
                 Text("\(window.remainingPercent)% 剩余")
                     .font(.subheadline.monospacedDigit().weight(.medium))
+                    .foregroundStyle(.white.opacity(0.98))
             }
 
             GeometryReader { geometry in
                 let fraction = CGFloat(window.remainingPercent) / 100
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(.white.opacity(0.1))
+                        .fill(.white.opacity(0.12))
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(
                             LinearGradient(
@@ -41,7 +43,7 @@ struct QuotaRowView: View {
                 Spacer()
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.63))
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(QuotaFormatter.windowTitle(minutes: window.windowDurationMinutes))，剩余百分之\(window.remainingPercent)，\(QuotaFormatter.countdown(to: window.resetsAt))")
