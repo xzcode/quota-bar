@@ -3,7 +3,7 @@ import CodexQuotaCore
 
 /// Dynamic-only particles, energy cores, and faded comet trails for the compact bar.
 struct ParticleFlowView: View {
-    let level: BurnRateLevel
+    let level: TokenActivityLevel
     let elapsed: TimeInterval
     let state: QuotaDangerState
 

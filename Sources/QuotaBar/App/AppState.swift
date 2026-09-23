@@ -58,6 +58,7 @@ final class AppState: ObservableObject {
         didStart = true
 
         floatingPanelController.show()
+        quotaViewModel.startLocalTokenUsageMonitoring()
         wakeObserver = AppLifecycleObserver.observeWake { [weak self] in
             self?.refreshNow()
         }

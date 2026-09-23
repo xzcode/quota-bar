@@ -7,7 +7,7 @@ struct BurnRateUpdate {
     let didIncreaseUsage: Bool
 }
 
-/// Persists a small, credential-free history used only for local animation.
+/// Persists quota-window samples for the separate percent-based burn-rate diagnostic.
 struct BurnRateHistoryStore {
     private static let storageKey = "cache.burnRateHistory.v1"
     private static let retention: TimeInterval = 60 * 60

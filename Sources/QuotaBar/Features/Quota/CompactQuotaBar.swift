@@ -1,12 +1,11 @@
 import SwiftUI
 import CodexQuotaCore
 
-/// Static energy capsule with a pulse-only animated layer for recent usage.
+/// Static energy capsule with optional motion driven by recent local token activity.
 struct CompactQuotaBar: View {
     let remaining: Int?
     let quotaSummary: String?
-    let burnRate: BurnRateSnapshot
-    let isParticlePulseActive: Bool
+    let activityLevel: TokenActivityLevel
     let isStale: Bool
     let reduceMotion: Bool
     let isHovered: Bool
@@ -16,14 +15,11 @@ struct CompactQuotaBar: View {
     }
 
     /// Calm, stale, and Reduce Motion states never construct a TimelineView or particle canvas.
-    private var motionLevel: BurnRateLevel? {
-        guard isParticlePulseActive,
-              !isStale,
-              !reduceMotion,
-              burnRate.level != .calm else {
+    private var motionLevel: TokenActivityLevel? {
+        guard activityLevel != .calm, !isStale, !reduceMotion else {
             return nil
         }
-        return burnRate.level
+        return activityLevel
     }
 
     var body: some View {

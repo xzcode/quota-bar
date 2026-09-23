@@ -16,6 +16,17 @@ struct QuotaBarTests {
             ("missing reset time formatting", testMissingResetTime),
             ("burn rate level thresholds", testBurnRateLevels),
             ("burn rate reset guard", testBurnRateResetGuard),
+            ("local token cumulative counters", testLocalTokenCumulativeCounters),
+            ("today session initial counter", testTodaySessionInitialCounter),
+            ("local token midnight boundary", testLocalTokenMidnightBoundary),
+            ("local token sessions aggregate", testLocalTokenMultipleSessions),
+            ("malformed token event ignored", testMalformedTokenEvent),
+            ("incomplete rollout line buffer", testIncompleteRolloutLine),
+            ("token event unknown fields", testTokenEventUnknownFields),
+            ("recent token activity thresholds", testRecentTokenActivity),
+            ("idle token activity returns calm", testIdleTokenActivity),
+            ("unavailable token data leaves quota parsing intact", testUnavailableTokensDoNotAffectQuota),
+            ("local token number formatting", testLocalTokenFormatting),
             ("Codex response without jsonrpc", testResponseWithoutJSONRPC),
             ("notification method and params", testNotification)
         ]
@@ -158,6 +169,154 @@ struct QuotaBarTests {
         try expect(result.level == .calm, "unknown reset rate uses calm visuals")
     }
 
+    private static func testLocalTokenCumulativeCounters() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-09-23T12:00:00Z")
+        let start = calendar.startOfDay(for: now)
+        var accumulator = LocalTokenUsageAccumulator()
+        for total in [100_000, 180_000, 250_000] {
+            accumulator.record(
+                RolloutTokenUsageEvent(timestamp: now, totalTokens: Int64(total)),
+                sessionID: "session",
+                sessionStartedAt: start,
+                now: now,
+                calendar: calendar
+            )
+        }
+        try expect(accumulator.snapshot(now: now, calendar: calendar).todayTotalTokens == 250_000, "cumulative samples must count only today's current total")
+    }
+
+    private static func testTodaySessionInitialCounter() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-09-23T12:00:00Z")
+        var accumulator = LocalTokenUsageAccumulator()
+        accumulator.record(
+            RolloutTokenUsageEvent(timestamp: now, totalTokens: 120_000),
+            sessionID: "new-session",
+            sessionStartedAt: now.addingTimeInterval(-60),
+            now: now,
+            calendar: calendar
+        )
+        try expect(accumulator.snapshot(now: now, calendar: calendar).todayTotalTokens == 120_000, "today's first cumulative value is today's usage")
+    }
+
+    private static func testLocalTokenMidnightBoundary() throws {
+        let calendar = utcCalendar()
+        let beforeMidnight = date("2026-09-22T23:59:00Z")
+        let afterMidnight = date("2026-09-23T00:05:00Z")
+        let sessionStart = date("2026-09-22T16:00:00Z")
+        var accumulator = LocalTokenUsageAccumulator()
+        accumulator.record(
+            RolloutTokenUsageEvent(timestamp: beforeMidnight, totalTokens: 1_200_000),
+            sessionID: "overnight",
+            sessionStartedAt: sessionStart,
+            now: afterMidnight,
+            calendar: calendar
+        )
+        accumulator.record(
+            RolloutTokenUsageEvent(timestamp: afterMidnight, totalTokens: 1_400_000),
+            sessionID: "overnight",
+            sessionStartedAt: sessionStart,
+            now: afterMidnight,
+            calendar: calendar
+        )
+        try expect(accumulator.snapshot(now: afterMidnight, calendar: calendar).todayTotalTokens == 200_000, "only the post-midnight delta should count today")
+    }
+
+    private static func testLocalTokenMultipleSessions() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-09-23T12:00:00Z")
+        let start = calendar.startOfDay(for: now)
+        var accumulator = LocalTokenUsageAccumulator()
+        for (id, total) in [("one", Int64(120)), ("two", Int64(340))] {
+            accumulator.record(
+                RolloutTokenUsageEvent(timestamp: now, totalTokens: total),
+                sessionID: id,
+                sessionStartedAt: start,
+                now: now,
+                calendar: calendar
+            )
+        }
+        try expect(accumulator.snapshot(now: now, calendar: calendar).todayTotalTokens == 460, "independent sessions should add their daily totals")
+    }
+
+    private static func testMalformedTokenEvent() throws {
+        try expect(RolloutTokenParser.parse(line: Data("{broken".utf8)) == nil, "malformed JSON must be ignored")
+    }
+
+    private static func testIncompleteRolloutLine() throws {
+        let line = Data(#"{"timestamp":"2026-09-23T12:00:00Z","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":120}}}}"#.utf8)
+        var buffer = JSONLLineBuffer()
+        try expect(buffer.append(line).isEmpty, "unfinished JSONL line must remain buffered")
+        let completed = buffer.append(Data([0x0A]))
+        try expect(completed.count == 1, "newline should release one complete line")
+        try expect(RolloutTokenParser.parse(line: completed[0])?.totalTokens == 120, "completed line should parse once")
+    }
+
+    private static func testTokenEventUnknownFields() throws {
+        let line = Data("""
+        { "timestamp": "2026-09-23T12:00:00Z", "other": { "ignored": true }, "payload": {
+          "type": "token_count", "unknown": "ignored", "info": { "total_token_usage": {
+            "total_tokens": 1000, "input_tokens": 700, "cached_input_tokens": 500, "output_tokens": 300, "future": 4
+          } }
+        } }
+        """.utf8)
+        let event = RolloutTokenParser.parse(line: line)
+        try expect(event?.totalTokens == 1000, "unknown fields should not change total")
+        try expect(event?.cachedInputTokens == 500, "cached input should remain a separate breakdown")
+    }
+
+    private static func testRecentTokenActivity() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-09-23T12:00:00Z")
+        var accumulator = LocalTokenUsageAccumulator()
+        accumulator.record(
+            RolloutTokenUsageEvent(timestamp: now.addingTimeInterval(-60), totalTokens: 200_000),
+            sessionID: "active",
+            sessionStartedAt: now,
+            now: now,
+            calendar: calendar
+        )
+        let snapshot = accumulator.snapshot(now: now, calendar: calendar)
+        try expect(snapshot.recentTokensPerMinute == 100_000, "two-minute rolling rate is recent positive tokens divided by two")
+        try expect(snapshot.activityLevel == .fast, "100K tokens/minute enters fast")
+    }
+
+    private static func testIdleTokenActivity() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-09-23T12:00:00Z")
+        var accumulator = LocalTokenUsageAccumulator()
+        accumulator.record(
+            RolloutTokenUsageEvent(timestamp: now.addingTimeInterval(-91), totalTokens: 1_000),
+            sessionID: "idle",
+            sessionStartedAt: now,
+            now: now,
+            calendar: calendar
+        )
+        let snapshot = accumulator.snapshot(now: now, calendar: calendar)
+        try expect(snapshot.activityLevel == .calm, "no token delta within 90 seconds must be calm")
+        try expect(TokenActivityPolicy.level(tokensPerMinute: 500_000, hasRecentUsage: false) == .calm, "idle policy overrides a stale rolling rate")
+    }
+
+    private static func testUnavailableTokensDoNotAffectQuota() throws {
+        let unavailable = LocalTokenUsageSnapshot.unavailable(at: date("2026-09-23T12:00:00Z"))
+        try expect(!unavailable.isAvailable && unavailable.activityLevel == .calm, "missing local history should render unavailable and calm")
+        let quotaJSON = try decodeJSON("""
+        { "rateLimits": { "primary": { "usedPercent": 25, "windowDurationMins": 300 } } }
+        """)
+        try expect(RateLimitParser.parseDetailed(result: quotaJSON).buckets.first?.windows.first?.remainingPercent == 75, "quota parsing remains independent of local-token availability")
+    }
+
+    private static func testLocalTokenFormatting() throws {
+        let examples: [(Int64, String)] = [
+            (523, "523"), (1_240, "1.2K"), (52_300, "52.3K"),
+            (1_240_000, "1.24M"), (18_630_000, "18.6M")
+        ]
+        for (value, expected) in examples {
+            try expect(LocalTokenUsageFormatter.format(value) == expected, "unexpected format for \(value)")
+        }
+    }
+
     private static func testResponseWithoutJSONRPC() throws {
         let data = Data("""
         { "id": 2, "result": { "rateLimits": { "primary": {
@@ -186,6 +345,16 @@ struct QuotaBarTests {
 
     private static func expect(_ condition: Bool, _ message: String) throws {
         guard condition else { throw TestFailure(message) }
+    }
+
+    private static func utcCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private static func date(_ string: String) -> Date {
+        ISO8601DateFormatter().date(from: string)!
     }
 }
 

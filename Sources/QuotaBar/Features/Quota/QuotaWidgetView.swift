@@ -35,8 +35,7 @@ struct QuotaWidgetView: View {
         CompactQuotaBar(
             remaining: viewModel.collapsedDisplayRemainingPercent,
             quotaSummary: viewModel.collapsedQuotaSummary,
-            burnRate: viewModel.burnRate,
-            isParticlePulseActive: viewModel.isParticlePulseActive,
+            activityLevel: viewModel.localTokenUsage.activityLevel,
             isStale: viewModel.isStale,
             reduceMotion: reduceMotion,
             isHovered: isHovered
@@ -75,10 +74,14 @@ struct QuotaWidgetView: View {
                 ForEach(bucket.windows) { window in
                     QuotaRowView(window: window)
                 }
-                BurnRateIndicator(snapshot: viewModel.burnRate)
             } else {
                 emptyState
             }
+
+            LocalTokenUsageIndicator(
+                snapshot: viewModel.localTokenUsage,
+                tooltipText: viewModel.localTokenUsageTooltipText
+            )
 
             footer
         }

@@ -3,7 +3,7 @@ import CodexQuotaCore
 
 /// Composes all moving effects under the single TimelineView owned by CompactQuotaBar.
 struct DynamicEnergyLayer: View {
-    let level: BurnRateLevel
+    let level: TokenActivityLevel
     let elapsed: TimeInterval
     let state: QuotaDangerState
 

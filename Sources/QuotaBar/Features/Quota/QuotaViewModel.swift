@@ -54,13 +54,14 @@ final class QuotaViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var transientNotice: String?
     @Published private(set) var burnRate: BurnRateSnapshot = .unknown
-    @Published private(set) var isParticlePulseActive = false
+    @Published private(set) var localTokenUsage = LocalTokenUsageSnapshot.unavailable()
     @Published private(set) var diagnosticDetails: String? = nil
 
     private let client: CodexAppServerClient
     private let cache = QuotaCacheStore()
     private var burnRateHistory = BurnRateHistoryStore()
-    private var particleActivityTask: Task<Void, Never>?
+    private let localTokenUsageMonitor = LocalTokenUsageMonitor()
+    private var localTokenUsageTask: Task<Void, Never>?
 
     init(client: CodexAppServerClient) {
         self.client = client
@@ -93,9 +94,6 @@ final class QuotaViewModel: ObservableObject {
                 previousSnapshot: previousSnapshot
             )
             burnRate = burnRateUpdate.snapshot
-            if burnRateUpdate.didIncreaseUsage {
-                startParticleActivityPulse()
-            }
             isStale = false
             status = buckets.isEmpty ? .noWindows : statusForCurrentSnapshot()
             transientNotice = nil
@@ -117,10 +115,40 @@ final class QuotaViewModel: ObservableObject {
     }
 
     func stopClient() async {
-        particleActivityTask?.cancel()
-        particleActivityTask = nil
-        isParticlePulseActive = false
+        localTokenUsageTask?.cancel()
+        localTokenUsageTask = nil
         await client.stop()
+    }
+
+    /// Starts local rollout monitoring independently of quota polling and keeps file work off MainActor.
+    func startLocalTokenUsageMonitoring() {
+        guard localTokenUsageTask == nil else { return }
+        localTokenUsageTask = Task { [weak self, localTokenUsageMonitor] in
+            let initialSnapshot = await localTokenUsageMonitor.start()
+            self?.updateLocalTokenUsage(initialSnapshot)
+
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(2))
+                } catch {
+                    break
+                }
+                let snapshot = await localTokenUsageMonitor.poll()
+                self?.updateLocalTokenUsage(snapshot)
+            }
+        }
+    }
+
+    private func updateLocalTokenUsage(_ snapshot: LocalTokenUsageSnapshot) {
+        guard localTokenUsage.todayTotalTokens != snapshot.todayTotalTokens
+                || localTokenUsage.todayInputTokens != snapshot.todayInputTokens
+                || localTokenUsage.todayCachedInputTokens != snapshot.todayCachedInputTokens
+                || localTokenUsage.todayOutputTokens != snapshot.todayOutputTokens
+                || localTokenUsage.recentTokensPerMinute != snapshot.recentTokensPerMinute
+                || localTokenUsage.lastUsageAt != snapshot.lastUsageAt
+                || localTokenUsage.activityLevel != snapshot.activityLevel
+                || localTokenUsage.isAvailable != snapshot.isAvailable else { return }
+        localTokenUsage = snapshot
     }
 
     func setTransientNotice(_ notice: String) {
@@ -216,7 +244,8 @@ final class QuotaViewModel: ObservableObject {
             "status=\(status.label)",
             "stale=\(isStale)",
             "lastUpdated=\(lastUpdatedText)",
-            "burnRate=\(burnRate.level.rawValue)"
+            "burnRate=\(burnRate.level.rawValue)",
+            "localTokenUsage=\(localTokenUsage.isAvailable ? "available" : "unavailable")"
         ]
         if let errorMessage {
             lines.append("error=\(errorMessage)")
@@ -231,20 +260,18 @@ final class QuotaViewModel: ObservableObject {
         QuotaFormatter.relativeUpdate(snapshot?.capturedAt)
     }
 
-    /// Briefly signals fresh quota use without treating the rolling rate as live activity.
-    private func startParticleActivityPulse() {
-        particleActivityTask?.cancel()
-        isParticlePulseActive = true
-        particleActivityTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(for: .seconds(30))
-            } catch {
-                return
-            }
-            guard let self else { return }
-            self.isParticlePulseActive = false
-            self.particleActivityTask = nil
-        }
+    var localTokenUsageTooltipText: String {
+        guard localTokenUsage.isAvailable else { return "本机 Codex Token 数据不可用" }
+        return [
+            "今日本机 Codex Token",
+            "",
+            "总计：\(LocalTokenUsageFormatter.format(localTokenUsage.todayTotalTokens))",
+            "输入：\(LocalTokenUsageFormatter.format(localTokenUsage.todayInputTokens))",
+            "缓存输入：\(LocalTokenUsageFormatter.format(localTokenUsage.todayCachedInputTokens))",
+            "输出：\(LocalTokenUsageFormatter.format(localTokenUsage.todayOutputTokens))",
+            "",
+            "当前：\(LocalTokenUsageFormatter.format(Int64(localTokenUsage.recentTokensPerMinute))) /min"
+        ].joined(separator: "\n")
     }
 
     var staleMessage: String? {

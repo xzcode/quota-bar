@@ -3,7 +3,7 @@ import CodexQuotaCore
 
 /// Draws one or two soft curved energy strands using the compact bar's shared clock.
 struct EnergyRibbonView: View {
-    let level: BurnRateLevel
+    let level: TokenActivityLevel
     let elapsed: TimeInterval
     let state: QuotaDangerState
 
