@@ -87,13 +87,21 @@ cornerRadius: 20 pt
 
 ## 4. 收纳态信息规则
 
-收纳态只显示剩余百分比，例如：
+如果存在 5 小时窗口，收纳态按“5 小时、周额度”的顺序显示百分比，例如：
 
 ```text
-62%
+95% · 76%
 ```
 
-不要同时显示 `5h`、`weekly`、`reset`、`normal` 等文字，避免失去简洁感。
+若没有 5 小时窗口，维持原有行为，仅显示最低剩余百分比。收纳态不显示额度名称、重置时间或状态文字。
+
+如果服务端同时返回 GPT Reserve 窗口，且 5 小时与周额度都为 0%，则收纳态只显示 Reserve：
+
+```text
+R · 92%
+```
+
+Reserve 仅用于额度显示，不触发模型切换或额度兑换。
 
 ## 5. 收纳态使用哪个额度
 
@@ -106,7 +114,7 @@ cornerRadius: 20 pt
 周额度：79%
 ```
 
-收纳态显示 `62%`。
+收纳态在有 5 小时窗口时显示 5 小时和周额度的百分比，渐变颜色仍使用最低的普通额度计算。如果两项普通额度均耗尽且存在 Reserve 窗口，则只显示 Reserve 百分比，渐变颜色改按 Reserve 计算。如果没有 5 小时窗口，则只显示最低剩余百分比。
 
 如果：
 
@@ -115,12 +123,12 @@ cornerRadius: 20 pt
 周额度：21%
 ```
 
-则显示 `21%`。
+则显示 `85% · 21%`，并仍以 `21%` 作为渐变颜色依据。
 
 即：
 
 ```swift
-collapsedRemaining = min(primaryRemaining, secondaryRemaining)
+collapsedRemaining = min(primaryRemaining, secondaryRemaining) // Used for visual severity.
 ```
 
 这样收纳态天然代表当前最危险额度。

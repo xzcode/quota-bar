@@ -33,7 +33,8 @@ struct QuotaWidgetView: View {
 
     private var collapsedContent: some View {
         CompactQuotaBar(
-            remaining: viewModel.collapsedRemainingPercent,
+            remaining: viewModel.collapsedDisplayRemainingPercent,
+            quotaSummary: viewModel.collapsedQuotaSummary,
             burnRate: viewModel.burnRate,
             isStale: viewModel.isStale,
             reduceMotion: reduceMotion,

@@ -1,9 +1,10 @@
 import SwiftUI
 import CodexQuotaCore
 
-/// The always-available compact presentation: one percentage and gentle flow.
+/// The compact quota summary with a gentle animated flow.
 struct CompactQuotaBar: View {
     let remaining: Int?
+    let quotaSummary: String?
     let burnRate: BurnRateSnapshot
     let isStale: Bool
     let reduceMotion: Bool
@@ -25,10 +26,13 @@ struct CompactQuotaBar: View {
             ParticleFlowView(level: burnRate.level, reduceMotion: reduceMotion)
                 .opacity(isHovered ? 1 : 0.78)
 
-            Text(remaining.map { "\($0)%" } ?? "—")
+            Text(quotaSummary ?? remaining.map { "\($0)%" } ?? "—")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .allowsTightening(true)
                 .shadow(color: .black.opacity(0.22), radius: 2, y: 1)
 
             if isStale {

@@ -135,13 +135,61 @@ final class QuotaViewModel: ObservableObject {
             ?? allWindows.map(\.remainingPercent).min()
     }
 
+    /// Uses the reserve balance only after both ordinary Codex windows are exhausted.
+    var collapsedDisplayRemainingPercent: Int? {
+        reserveFallbackPercent ?? collapsedRemainingPercent
+    }
+
+    /// Shows ordinary windows as bare percentages, or marks the reserve balance with R.
+    var collapsedQuotaSummary: String? {
+        if let reserve = reserveFallbackPercent {
+            return "R · \(reserve)%"
+        }
+
+        guard let windows = primaryBucket?.windows,
+              windows.contains(where: { $0.windowDurationMinutes == 300 }) else {
+            return nil
+        }
+
+        let fiveHourWindows = windows.filter { $0.windowDurationMinutes == 300 }
+        let weeklyWindows = windows.filter { $0.windowDurationMinutes == 10080 }
+        let otherWindows = windows.filter { $0.windowDurationMinutes != 300 && $0.windowDurationMinutes != 10080 }
+        return (fiveHourWindows + weeklyWindows + otherWindows)
+            .map { "\($0.remainingPercent)%" }
+            .joined(separator: " · ")
+    }
+
     /// Tooltip content intentionally exposes only quota percentages.
     var compactTooltipText: String {
+        if let reserve = reserveFallbackPercent {
+            return "GPT Reserve：\(reserve)%"
+        }
+
         guard let bucket = primaryBucket else { return "额度暂时不可用" }
         let parts = bucket.windows.map { window in
             "\(QuotaFormatter.compactWindowTitle(minutes: window.windowDurationMinutes))：\(window.remainingPercent)%"
         }
         return parts.joined(separator: " / ")
+    }
+
+    private var reserveFallbackPercent: Int? {
+        guard let windows = primaryBucket?.windows,
+              let fiveHour = windows.first(where: { $0.windowDurationMinutes == 300 }),
+              let weekly = windows.first(where: { $0.windowDurationMinutes == 10080 }),
+              fiveHour.remainingPercent == 0,
+              weekly.remainingPercent == 0,
+              let reserveBucket = snapshot?.buckets.first(where: isReserveBucket),
+              let remaining = reserveBucket.windows.map(\.remainingPercent).min() else {
+            return nil
+        }
+        return remaining
+    }
+
+    /// Recognizes the reserve pool by its explicit server name or known bucket id.
+    private func isReserveBucket(_ bucket: QuotaBucket) -> Bool {
+        let id = bucket.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let name = bucket.name?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return name == "gpt-reserve" || id == "gpt-reserve" || (id == "base_model_inference" && name == nil)
     }
 
     var footerStatusText: String {
