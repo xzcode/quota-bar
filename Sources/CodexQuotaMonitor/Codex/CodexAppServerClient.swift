@@ -36,6 +36,26 @@ enum CodexClientError: LocalizedError, Sendable {
         }
     }
 
+    /// Safe structured detail used only by the explicit copy-diagnostics action.
+    var diagnosticDescription: String {
+        switch self {
+        case .notInstalled:
+            return "status=codex_not_installed"
+        case .notAuthenticated(let code, let message):
+            return "status=not_authenticated code=\(code.map(String.init) ?? "none") message=\(message)"
+        case .appServerStartFailed(let message, let kind):
+            return "status=app_server_start_failed kind=\(kind.rawValue) message=\(message)"
+        case .initializeFailed(let code, let message, let kind):
+            return "status=initialize_failed kind=\(kind.rawValue) code=\(code.map(String.init) ?? "none") message=\(message)"
+        case .rateLimitsReadFailed(let code, let message, let kind):
+            return "status=rate_limits_read_failed kind=\(kind.rawValue) code=\(code.map(String.init) ?? "none") message=\(message)"
+        case .unrecognizedResponse:
+            return "status=unrecognized_response"
+        case .transport:
+            return "status=transport_error"
+        }
+    }
+
     private func rpcCodeSuffix(_ code: Int?) -> String {
         code.map { "（错误码 \($0)）" } ?? ""
     }

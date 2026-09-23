@@ -14,6 +14,8 @@ struct CodexQuotaMonitorTests {
             ("required duration formatting", testDurationFormatting),
             ("countdown formatting", testCountdownFormatting),
             ("missing reset time formatting", testMissingResetTime),
+            ("burn rate level thresholds", testBurnRateLevels),
+            ("burn rate reset guard", testBurnRateResetGuard),
             ("Codex response without jsonrpc", testResponseWithoutJSONRPC),
             ("notification method and params", testNotification)
         ]
@@ -129,6 +131,31 @@ struct CodexQuotaMonitorTests {
 
     private static func testMissingResetTime() throws {
         try expect(QuotaFormatter.countdown(to: nil) == "重置时间未知", "missing reset time")
+    }
+
+    private static func testBurnRateLevels() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let samples = [
+            QuotaUsageSample(timestamp: now.addingTimeInterval(-10 * 60), bucketId: "codex", windowKind: .primary, usedPercent: 20),
+            QuotaUsageSample(timestamp: now, bucketId: "codex", windowKind: .primary, usedPercent: 24)
+        ]
+        let result = BurnRateCalculator.calculate(samples: samples, now: now)
+        try expect(abs((result.percentPerMinute ?? 0) - 0.4) < 0.0001, "expected 0.4 percent per minute")
+        try expect(result.level == .veryFast, "expected veryFast level")
+        try expect(BurnRateCalculator.level(for: 0.04) == .calm, "calm threshold")
+        try expect(BurnRateCalculator.level(for: 0.10) == .active, "active threshold")
+        try expect(BurnRateCalculator.level(for: 0.20) == .fast, "fast threshold")
+    }
+
+    private static func testBurnRateResetGuard() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let samples = [
+            QuotaUsageSample(timestamp: now.addingTimeInterval(-10 * 60), bucketId: "codex", windowKind: .primary, usedPercent: 80),
+            QuotaUsageSample(timestamp: now, bucketId: "codex", windowKind: .primary, usedPercent: 2)
+        ]
+        let result = BurnRateCalculator.calculate(samples: samples, now: now)
+        try expect(result.percentPerMinute == nil, "reset must not become negative burn")
+        try expect(result.level == .calm, "unknown reset rate uses calm visuals")
     }
 
     private static func testResponseWithoutJSONRPC() throws {

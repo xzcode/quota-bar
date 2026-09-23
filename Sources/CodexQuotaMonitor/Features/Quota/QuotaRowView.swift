@@ -15,17 +15,30 @@ struct QuotaRowView: View {
                     .font(.subheadline.monospacedDigit().weight(.medium))
             }
 
-            ProgressView(value: Double(window.remainingPercent), total: 100)
-                .tint(QuotaFormatter.color(for: window.remainingPercent))
+            GeometryReader { geometry in
+                let fraction = CGFloat(window.remainingPercent) / 100
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(.white.opacity(0.1))
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: QuotaVisualStyle.progressColors(remaining: window.remainingPercent),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geometry.size.width * fraction)
+                }
+            }
+            .frame(height: 6)
+            .accessibilityLabel("剩余额度")
+            .accessibilityValue("百分之\(window.remainingPercent)")
 
             HStack {
                 Text(QuotaFormatter.countdown(to: window.resetsAt))
+                    .help(QuotaFormatter.absoluteDate(window.resetsAt))
                 Spacer()
-                if window.resetsAt != nil {
-                    Text(QuotaFormatter.absoluteDate(window.resetsAt))
-                        .foregroundStyle(.secondary)
-                        .help(QuotaFormatter.absoluteDate(window.resetsAt))
-                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)

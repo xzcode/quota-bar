@@ -40,7 +40,7 @@ final class AppState: ObservableObject {
     private var didStart = false
 
     private init() {
-        alwaysOnTop = UserDefaults.standard.object(forKey: SettingsKey.alwaysOnTop) as? Bool ?? false
+        alwaysOnTop = UserDefaults.standard.object(forKey: SettingsKey.alwaysOnTop) as? Bool ?? true
         presentationState = UserDefaults.standard.string(forKey: SettingsKey.widgetPresentationState)
             .flatMap(WidgetPresentationState.init(rawValue:)) ?? .collapsed
         launchAtLogin = UserDefaults.standard.object(forKey: SettingsKey.launchAtLogin) as? Bool ?? false
@@ -91,6 +91,21 @@ final class AppState: ObservableObject {
             floatingPanelController.show()
         }
         isPanelVisible.toggle()
+    }
+
+    /// Shows and raises the panel, also restoring the default always-on-top mode.
+    func bringPanelToFront() {
+        if !alwaysOnTop {
+            alwaysOnTop = true
+        }
+        isPanelVisible = true
+        floatingPanelController.bringToFront()
+    }
+
+    /// Re-raises a visible widget when the app becomes active again.
+    func keepVisiblePanelInFront() {
+        guard isPanelVisible else { return }
+        floatingPanelController.bringToFront()
     }
 
     /// Expands or collapses the existing panel without creating another window.

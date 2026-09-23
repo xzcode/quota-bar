@@ -37,7 +37,7 @@ enum QuotaStatus: Equatable, Sendable {
     var color: Color {
         switch self {
         case .normal: return .green
-        case .low: return .yellow
+        case .low: return .orange
         case .critical, .serviceError, .notAuthenticated, .notInstalled, .appServerStartFailed, .initializeFailed, .rateLimitsReadFailed, .unrecognizedResponse: return .red
         case .loading, .noWindows: return .secondary
         }
@@ -53,9 +53,12 @@ final class QuotaViewModel: ObservableObject {
     @Published private(set) var isStale = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var transientNotice: String?
+    @Published private(set) var burnRate: BurnRateSnapshot = .unknown
+    @Published private(set) var diagnosticDetails: String? = nil
 
     private let client: CodexAppServerClient
     private let cache = QuotaCacheStore()
+    private var burnRateHistory = BurnRateHistoryStore()
 
     init(client: CodexAppServerClient) {
         self.client = client
@@ -63,6 +66,7 @@ final class QuotaViewModel: ObservableObject {
         if snapshot != nil {
             isStale = true
             status = statusForCurrentSnapshot()
+            burnRate = burnRateHistory.current(for: snapshot)
         }
     }
 
@@ -81,17 +85,21 @@ final class QuotaViewModel: ObservableObject {
             let newSnapshot = QuotaSnapshot(buckets: buckets, capturedAt: .now)
             snapshot = newSnapshot
             cache.save(newSnapshot)
+            burnRate = burnRateHistory.record(snapshot: newSnapshot)
             isStale = false
             status = buckets.isEmpty ? .noWindows : statusForCurrentSnapshot()
             transientNotice = nil
+            diagnosticDetails = "status=success"
             return true
         } catch let error as CodexClientError {
             errorMessage = error.localizedDescription
+            diagnosticDetails = error.diagnosticDescription
             isStale = true
             status = statusFor(error)
             return false
         } catch {
             errorMessage = "暂时无法获取额度"
+            diagnosticDetails = "status=transport_error"
             isStale = true
             status = .serviceError
             return false
@@ -116,8 +124,46 @@ final class QuotaViewModel: ObservableObject {
     }
 
     var menuBarPercentageText: String {
-        guard let minimum = allWindows.map(\.remainingPercent).min() else { return "—" }
+        guard let minimum = collapsedRemainingPercent else { return "—" }
         return "\(minimum)%"
+    }
+
+    /// The compact bar represents the most dangerous window in the primary
+    /// Codex bucket, with a safe fallback for older response shapes.
+    var collapsedRemainingPercent: Int? {
+        primaryBucket?.windows.map(\.remainingPercent).min()
+            ?? allWindows.map(\.remainingPercent).min()
+    }
+
+    /// Tooltip content intentionally exposes only quota percentages.
+    var compactTooltipText: String {
+        guard let bucket = primaryBucket else { return "额度暂时不可用" }
+        let parts = bucket.windows.map { window in
+            "\(QuotaFormatter.compactWindowTitle(minutes: window.windowDurationMinutes))：\(window.remainingPercent)%"
+        }
+        return parts.joined(separator: " / ")
+    }
+
+    var footerStatusText: String {
+        if isStale, snapshot != nil { return "数据可能已过期" }
+        return status.label
+    }
+
+    /// Safe text for the context-menu copy action; it contains no raw RPC data.
+    var diagnosticText: String {
+        var lines = [
+            "status=\(status.label)",
+            "stale=\(isStale)",
+            "lastUpdated=\(lastUpdatedText)",
+            "burnRate=\(burnRate.level.rawValue)"
+        ]
+        if let errorMessage {
+            lines.append("error=\(errorMessage)")
+        }
+        if let diagnosticDetails {
+            lines.append(diagnosticDetails)
+        }
+        return lines.joined(separator: "\n")
     }
 
     var lastUpdatedText: String {

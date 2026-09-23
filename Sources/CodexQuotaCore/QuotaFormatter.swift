@@ -9,6 +9,13 @@ public enum QuotaFormatter {
         return "\(duration(minutes: minutes))额度"
     }
 
+    /// Short label used in the compact tooltip without repeating “额度”.
+    public static func compactWindowTitle(minutes: Int?) -> String {
+        guard let minutes else { return "额度" }
+        if minutes == 10080 { return "周额度" }
+        return duration(minutes: minutes)
+    }
+
     public static func duration(minutes: Int) -> String {
         if minutes % 1440 == 0 {
             let days = minutes / 1440

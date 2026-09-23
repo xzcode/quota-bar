@@ -29,13 +29,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Re-show the floating card when LaunchServices reopens an existing app.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag {
-            AppState.shared.start()
-        }
+        AppState.shared.bringPanelToFront()
         return true
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        AppState.shared.keepVisiblePanelInFront()
         AppState.shared.applicationDidBecomeActive()
     }
 

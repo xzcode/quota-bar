@@ -40,6 +40,8 @@ open dist/CodexQuotaMonitor.app
 
 打包脚本会将 SwiftPM release binary 放入应用包，并设置 `LSUIElement`，因此应用默认不显示 Dock 图标。
 
+桌面挂件默认置顶显示在普通应用窗口上方，并加入所有桌面空间和全屏空间。若挂件被隐藏，可点击菜单栏的 Codex 图标并选择“置顶显示桌面挂件”；“设置 → 窗口 → 始终置顶”可关闭此行为。
+
 ## Codex CLI 要求
 
 程序按以下顺序查找 `codex`：

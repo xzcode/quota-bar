@@ -31,8 +31,13 @@ struct MenuBarView: View {
         Text("上次更新：\(viewModel.lastUpdatedText)")
             .foregroundStyle(.secondary)
         Divider()
-        Button(appState.isPanelVisible ? "隐藏桌面挂件" : "显示桌面挂件") {
-            appState.togglePanel()
+        Button("置顶显示桌面挂件") {
+            appState.bringPanelToFront()
+        }
+        if appState.isPanelVisible {
+            Button("隐藏桌面挂件") {
+                appState.togglePanel()
+            }
         }
         Button("立即刷新") {
             appState.refreshNow()

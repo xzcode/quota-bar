@@ -9,7 +9,13 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
 
     func show() {
         if panel == nil { createPanel() }
+        panel?.level = AppState.shared.alwaysOnTop ? .statusBar : .normal
         panel?.orderFrontRegardless()
+    }
+
+    /// Explicitly raises the existing panel without creating another window.
+    func bringToFront() {
+        show()
     }
 
     /// Resizes the same panel while preserving its top edge and horizontal
@@ -25,13 +31,19 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
             width: size.width,
             height: size.height
         )
+        let visibleOrigin = positionStore.visibleOrigin(for: targetFrame.origin, size: targetFrame.size)
+        let reachableFrame = targetFrame.offsetBy(
+            dx: visibleOrigin.x - targetFrame.origin.x,
+            dy: visibleOrigin.y - targetFrame.origin.y
+        )
 
-        if animated {
-            panel.setFrame(targetFrame, display: true, animate: true)
+        let shouldAnimate = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if shouldAnimate {
+            panel.setFrame(reachableFrame, display: true, animate: true)
         } else {
-            panel.setFrame(targetFrame, display: true)
+            panel.setFrame(reachableFrame, display: true)
         }
-        positionStore.save(targetFrame.origin)
+        positionStore.save(reachableFrame.origin)
     }
 
     func hide() {
@@ -39,7 +51,10 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
     }
 
     func setAlwaysOnTop(_ enabled: Bool) {
-        panel?.level = enabled ? .floating : .normal
+        panel?.level = enabled ? .statusBar : .normal
+        if enabled, panel?.isVisible == true {
+            panel?.orderFrontRegardless()
+        }
     }
 
     private func createPanel() {
@@ -56,13 +71,14 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         panel.contentView = hostingView
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // The panel's native shadow follows its rectangular frame, unlike the rounded card.
+        panel.hasShadow = false
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.isMovableByWindowBackground = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.level = AppState.shared.alwaysOnTop ? .floating : .normal
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.level = AppState.shared.alwaysOnTop ? .statusBar : .normal
         panel.delegate = self
 
         // Keep the initial frame in sync with the restored presentation state
@@ -71,7 +87,9 @@ final class FloatingPanelController: NSObject, NSWindowDelegate {
         panel.setContentSize(initialSize)
 
         if let origin = positionStore.load() {
-            panel.setFrameOrigin(origin)
+            let reachableOrigin = positionStore.visibleOrigin(for: origin, size: initialSize)
+            panel.setFrameOrigin(reachableOrigin)
+            positionStore.save(reachableOrigin)
         } else {
             panel.center()
         }

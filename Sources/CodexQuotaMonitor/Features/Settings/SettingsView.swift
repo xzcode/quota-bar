@@ -9,6 +9,7 @@ struct SettingsView: View {
         Form {
             Section("窗口") {
                 Toggle("始终置顶", isOn: $appState.alwaysOnTop)
+                    .help("默认开启，挂件会显示在普通应用窗口和全屏空间前面")
                 Toggle("显示菜单栏百分比", isOn: $appState.showMenuBarPercentage)
             }
 
