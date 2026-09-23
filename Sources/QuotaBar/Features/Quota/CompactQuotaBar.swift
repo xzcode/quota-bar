@@ -7,6 +7,7 @@ struct CompactQuotaBar: View {
     let quotaSummary: String?
     let activityLevel: TokenActivityLevel
     let isStale: Bool
+    let isDemoMode: Bool
     let reduceMotion: Bool
     let isHovered: Bool
 
@@ -16,7 +17,7 @@ struct CompactQuotaBar: View {
 
     /// Calm, stale, and Reduce Motion states never construct a TimelineView or particle canvas.
     private var motionLevel: TokenActivityLevel? {
-        guard activityLevel != .calm, !isStale, !reduceMotion else {
+        guard activityLevel != .calm, (!isStale || isDemoMode), !reduceMotion else {
             return nil
         }
         return activityLevel
@@ -25,10 +26,10 @@ struct CompactQuotaBar: View {
     var body: some View {
         ZStack {
             StaticEnergyBackground(state: dangerState)
-                .saturation(isStale ? 0.45 : 1)
+                .saturation(isStale && !isDemoMode ? 0.45 : 1)
                 .animation(
                     reduceMotion ? .easeOut(duration: 0.12) : .easeInOut(duration: 0.4),
-                    value: isStale
+                    value: isStale && !isDemoMode
                 )
 
             if let motionLevel, let interval = motionLevel.animationFrameInterval {
@@ -50,9 +51,9 @@ struct CompactQuotaBar: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
                 .allowsTightening(true)
-                .shadow(color: .black.opacity(0.22), radius: 2, y: 1)
+                .shadow(color: .black.opacity(0.25), radius: 2.5, y: 1)
 
-            if isStale {
+            if isStale && !isDemoMode {
                 Circle()
                     .fill(.orange)
                     .frame(width: 5, height: 5)

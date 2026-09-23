@@ -3,26 +3,20 @@ import CodexQuotaCore
 
 /// Maps real token activity to rendering intensity without coupling it to quota burn-rate rules.
 extension TokenActivityLevel {
-    var backgroundParticleCount: Int {
+    /// Keeps the total count of sparks and comets below the twelve-item budget.
+    var sparkCount: Int {
         switch self {
         case .calm: return 0
-        case .active: return 6
-        case .fast: return 8
-        case .veryFast: return 9
+        case .active: return 4
+        case .fast: return 6
+        case .veryFast: return 8
         }
     }
 
-    var energyParticleCount: Int {
+    var cometCount: Int {
         switch self {
         case .calm: return 0
         case .active: return 1
-        case .fast, .veryFast: return 2
-        }
-    }
-
-    var trailCount: Int {
-        switch self {
-        case .calm, .active: return 0
         case .fast: return 2
         case .veryFast: return 3
         }
@@ -36,33 +30,113 @@ extension TokenActivityLevel {
         }
     }
 
-    var cometTrailLength: Double {
+    var streamLength: Double {
         switch self {
-        case .calm, .active: return 0
-        case .fast: return 7
-        case .veryFast: return 12
+        case .calm: return 0
+        case .active: return 82
+        case .fast: return 108
+        case .veryFast: return 136
         }
     }
 
-    var movingHighlightWidth: Double {
+    var streamCoreOpacity: Double {
         switch self {
         case .calm: return 0
-        case .active: return 22
-        case .fast: return 30
+        case .active: return 0.28
+        case .fast: return 0.42
+        case .veryFast: return 0.55
+        }
+    }
+
+    var streamGlowOpacity: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 0.15
+        case .fast: return 0.22
+        case .veryFast: return 0.30
+        }
+    }
+
+    var streamCoreWidth: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 1.5
+        case .fast: return 2.0
+        case .veryFast: return 2.4
+        }
+    }
+
+    var streamGlowWidth: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 6
+        case .fast: return 8
+        case .veryFast: return 10
+        }
+    }
+
+    var streamBlurRadius: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 6
+        case .fast: return 8
+        case .veryFast: return 10
+        }
+    }
+
+    var cometTrailLength: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 10
+        case .fast: return 22
         case .veryFast: return 36
         }
     }
 
-    var movingHighlightOpacity: Double {
+    var cometCoreDiameter: Double {
         switch self {
         case .calm: return 0
-        case .active: return 0.12
-        case .fast: return 0.19
-        case .veryFast: return 0.25
+        case .active: return 2.8
+        case .fast: return 3.2
+        case .veryFast: return 3.6
         }
     }
 
-    var particleCount: Int { backgroundParticleCount + energyParticleCount + trailCount }
+    var sweepWidth: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 32
+        case .fast: return 42
+        case .veryFast: return 52
+        }
+    }
+
+    var sweepOpacity: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 0.16
+        case .fast: return 0.34
+        case .veryFast: return 0.46
+        }
+    }
+
+    var edgeStreakWidth: Double {
+        switch self {
+        case .calm, .active: return 0
+        case .fast: return 26
+        case .veryFast: return 36
+        }
+    }
+
+    var edgeStreakOpacity: Double {
+        switch self {
+        case .calm, .active: return 0
+        case .fast: return 0.42
+        case .veryFast: return 0.58
+        }
+    }
+
+    var particleCount: Int { sparkCount + cometCount }
 
     var animationFrameInterval: TimeInterval? {
         switch self {
@@ -79,15 +153,6 @@ extension TokenActivityLevel {
         case .active: return 6.5
         case .fast: return 4
         case .veryFast: return 2.4
-        }
-    }
-
-    var gradientSpeed: Double {
-        switch self {
-        case .calm: return 0
-        case .active: return 0.08
-        case .fast: return 0.14
-        case .veryFast: return 0.22
         }
     }
 
