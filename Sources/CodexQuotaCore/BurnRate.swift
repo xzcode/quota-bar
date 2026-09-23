@@ -31,11 +31,11 @@ public enum BurnRateLevel: String, Codable, Equatable, Sendable {
         }
     }
 
-    /// Background dots stay numerous but dimmer than the moving energy particles.
+    /// Only animated states render the subdued background flow particles.
     public var backgroundParticleCount: Int {
         switch self {
-        case .calm: return 5
-        case .active: return 7
+        case .calm: return 0
+        case .active: return 6
         case .fast: return 8
         case .veryFast: return 9
         }
@@ -56,6 +56,44 @@ public enum BurnRateLevel: String, Codable, Equatable, Sendable {
         case .calm, .active: return 0
         case .fast: return 2
         case .veryFast: return 3
+        }
+    }
+
+    /// Limits the ribbon layer to two concurrent strands at most.
+    public var energyRibbonCount: Int {
+        switch self {
+        case .calm: return 0
+        case .active: return 1
+        case .fast, .veryFast: return 2
+        }
+    }
+
+    /// Lengthens the comet fade only for the faster animation tiers.
+    public var cometTrailLength: Double {
+        switch self {
+        case .calm, .active: return 0
+        case .fast: return 7
+        case .veryFast: return 12
+        }
+    }
+
+    /// Moving highlight stays subtle at active burn and broadens slightly at higher rates.
+    public var movingHighlightWidth: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 22
+        case .fast: return 30
+        case .veryFast: return 36
+        }
+    }
+
+    /// Visual intensity for the shared moving highlight and ribbon layer.
+    public var movingHighlightOpacity: Double {
+        switch self {
+        case .calm: return 0
+        case .active: return 0.12
+        case .fast: return 0.19
+        case .veryFast: return 0.25
         }
     }
 

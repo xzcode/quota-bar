@@ -1,7 +1,38 @@
 import SwiftUI
 
+/// Fixed danger categories used to select the compact bar's base palette.
+enum QuotaDangerState: Hashable {
+    case normal
+    case low
+    case critical
+    case unknown
+}
+
 /// Centralized quota colors keep danger state separate from burn-rate motion.
 enum QuotaVisualStyle {
+    /// Maps only danger thresholds to a compact palette; normal hue ignores the exact percentage.
+    static func dangerState(remaining: Int?) -> QuotaDangerState {
+        guard let remaining else { return .unknown }
+        if remaining <= 10 { return .critical }
+        if remaining <= 25 { return .low }
+        return .normal
+    }
+
+    /// Returns the calm glass capsule palette for its discrete quota danger state.
+    static func palette(for state: QuotaDangerState) -> [Color] {
+        switch state {
+        case .normal:
+            return [rgb(0x2D, 0x5B, 0xFF), rgb(0x4B, 0x45, 0xD6), rgb(0x6B, 0x3E, 0xC7)]
+        case .low:
+            return [rgb(0x4B, 0x45, 0xD6), rgb(0x6B, 0x3E, 0xC7), rgb(0x87, 0x4B, 0xB5), rgb(0xC0, 0x86, 0x42)]
+        case .critical:
+            return [rgb(0x2E, 0x0E, 0x54), rgb(0x6A, 0x1B, 0x67), rgb(0xC4, 0x2E, 0x69)]
+        case .unknown:
+            return [rgb(0x35, 0x40, 0x58), rgb(0x3E, 0x42, 0x5E), rgb(0x4B, 0x42, 0x5D)]
+        }
+    }
+
+    /// Keeps expanded progress-row colors independent from the compact capsule redesign.
     private static let paletteStops = [
         PaletteStop(remaining: 0, colors: [
             RGBColor(red: 0.18, green: 0.06, blue: 0.30),
@@ -45,6 +76,11 @@ enum QuotaVisualStyle {
 
     static func progressColors(remaining: Int) -> [Color] {
         gradientColors(remaining: Double(remaining), isStale: false)
+    }
+
+    /// Converts byte-style RGB values to SwiftUI's normalized color components.
+    private static func rgb(_ red: Double, _ green: Double, _ blue: Double) -> Color {
+        Color(red: red / 255, green: green / 255, blue: blue / 255)
     }
 
     /// One corresponding RGB gradient stop at a quota palette anchor.

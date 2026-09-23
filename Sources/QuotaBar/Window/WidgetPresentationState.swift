@@ -5,11 +5,11 @@ enum WidgetPresentationState: String, Equatable, Sendable {
     case collapsed
     case expanded
 
-    /// The compact energy pill is shorter than the expanded card by design.
+    /// The compact energy pill stays thick enough to read as a capsule.
     var panelSize: CGSize {
         switch self {
         case .collapsed:
-            return CGSize(width: 240, height: 28)
+            return CGSize(width: 210, height: 32)
         case .expanded:
             return CGSize(width: 330, height: 210)
         }
