@@ -14,6 +14,7 @@ struct DenseParticleStreamView: View {
     @State private var hasInitialized = false
 
     private let laneY: [CGFloat] = [6.5, 11.5, 16, 20.5, 25.5]
+    private let laneSpeedMultiplier: [Double] = [0.93, 1.04, 0.97, 1.08, 1.00]
     private let wrapMargin: CGFloat = 6
     private let transitionDuration: TimeInterval = 0.28
 
@@ -186,29 +187,26 @@ struct DenseParticleStreamView: View {
         hasInitialized = true
     }
 
-    /// Re-anchors existing phases and places only new particles into the largest current gaps.
+    /// Preserves visible particles and introduces additions at their deterministic descriptor phases.
     private func preservePhases(from oldLevel: TokenActivityLevel, to newLevel: TokenActivityLevel) {
         let now = elapsed
         let inPriorTransition = now - transitionStart < transitionDuration
         let sourceCount = max(oldLevel.particleCount, inPriorTransition ? transitionSourceCount : 0)
         let oldTravelTime = max(oldLevel.particleTravelSeconds, 0.1)
         var anchors = phaseAnchors
-        var currentPhases: [Double] = []
 
         for index in 0..<sourceCount {
-            let raw = phaseAnchors[index] + max(0, now - phaseAnchorTime) / oldTravelTime
+            let descriptor = DenseParticleDescriptor.all[index]
+            let laneSpeed = laneSpeedMultiplier[descriptor.lane]
+            let raw = phaseAnchors[index]
+                + max(0, now - phaseAnchorTime) / oldTravelTime * laneSpeed
             let phase = raw - floor(raw)
             anchors[index] = phase
-            currentPhases.append(phase)
         }
 
         if newLevel.particleCount > sourceCount {
-            let newPhases = DenseParticleDescriptor.fillLargestGaps(
-                around: currentPhases,
-                count: newLevel.particleCount - sourceCount
-            )
-            for (offset, phase) in newPhases.enumerated() {
-                anchors[sourceCount + offset] = phase
+            for index in sourceCount..<newLevel.particleCount {
+                anchors[index] = DenseParticleDescriptor.all[index].phase
             }
         }
 
@@ -219,10 +217,13 @@ struct DenseParticleStreamView: View {
         hasInitialized = true
     }
 
-    /// Uses one shared tier velocity so phase gaps cannot drift into clusters over repeated wraps.
+    /// Applies one fixed velocity per lane, preserving same-lane spacing while lanes slowly drift apart.
     private func currentPhase(for index: Int, at time: TimeInterval, travelTime: Double) -> Double {
         guard hasInitialized else { return DenseParticleDescriptor.all[index].phase }
-        let raw = phaseAnchors[index] + max(0, time - phaseAnchorTime) / max(travelTime, 0.1)
+        let descriptor = DenseParticleDescriptor.all[index]
+        let laneSpeed = laneSpeedMultiplier[descriptor.lane]
+        let raw = phaseAnchors[index]
+            + max(0, time - phaseAnchorTime) / max(travelTime, 0.1) * laneSpeed
         return raw - floor(raw)
     }
 
@@ -273,13 +274,13 @@ private struct DenseParticleDescriptor {
     let twinkleSpeed: Double
     let twinkleDepth: Double
 
-    // One bright marker per eight stable particle IDs keeps highlight density proportional by tier.
-    static let brightIndices = Set(stride(from: 2, to: TokenActivityLevel.veryFast.particleCount, by: 8))
+    /// Tier-banded fixed-seed selections preserve each activity level's exact bright/sparkle counts.
+    private static let selection = makeSelection()
+    static let brightIndices = selection.brightIndices
+    private static let sparkleRanks = selection.sparkleRanks
+
     static let all: [DenseParticleDescriptor] = {
         let phases = stratifiedPhases()
-        let sparkleRanks = Dictionary(
-            uniqueKeysWithValues: brightIndices.sorted().enumerated().map { ($1, $0) }
-        )
         return phases.indices.map { index in
             let isBright = brightIndices.contains(index)
             let sizeSeed = seed(index, salt: 1)
@@ -293,7 +294,7 @@ private struct DenseParticleDescriptor {
                 colorIndex: index % 3,
                 isBright: isBright,
                 sparkleRank: sparkleRank,
-                sparkleEnabled: sparkleRank.map { $0 < TokenActivityLevel.veryFast.sparkleParticleCount } ?? false,
+                sparkleEnabled: sparkleRank != nil,
                 twinklePhase: seed(index, salt: 3) * 2 * .pi,
                 twinkleSpeed: 0.9 + seed(index, salt: 4) * 0.2,
                 twinkleDepth: 0.9 + seed(index, salt: 5) * 0.2
@@ -301,46 +302,106 @@ private struct DenseParticleDescriptor {
         }
     }()
 
-    /// Builds nested evenly spaced phase sets, so higher tiers fill gaps without moving existing IDs.
+    /// Builds nested jittered strata by splitting each slow-tier interval with stable, bounded offsets.
     private static func stratifiedPhases() -> [Double] {
         let slowCount = TokenActivityLevel.slow.particleCount
-        let mediumCount = TokenActivityLevel.medium.particleCount
-        let fastCount = TokenActivityLevel.fast.particleCount
         let maximumCount = TokenActivityLevel.veryFast.particleCount
-        var phases = (0..<slowCount).map { (Double($0) + 0.5) / Double(slowCount) }
-        phases += fillLargestGaps(around: phases, count: mediumCount - phases.count)
-        phases += fillLargestGaps(around: phases, count: fastCount - phases.count)
-        phases += fillLargestGaps(around: phases, count: maximumCount - phases.count)
+        let slotWidth = 1.0 / Double(slowCount)
+        let basePhases = (0..<slowCount).map { index in
+            let center = (Double(index) + 0.5) * slotWidth
+            let jitter = (seed(index, salt: 6) - 0.5) * slotWidth * 0.60
+            return center + jitter
+        }
+
+        // Each original slot remains a stratum; higher tiers add one descriptor per stratum per tier.
+        let sortedBasePhases = basePhases.sorted()
+        let stratumLeftEdges = sortedBasePhases
+        let stratumWidths = sortedBasePhases.indices.map { index in
+            let next = index == sortedBasePhases.count - 1
+                ? sortedBasePhases[0] + 1
+                : sortedBasePhases[index + 1]
+            return next - sortedBasePhases[index]
+        }
+        var stratumPoints = Array(repeating: [Double](), count: slowCount)
+        var phases = basePhases
+        var previousCount = slowCount
+
+        for tier in [TokenActivityLevel.medium, .fast, .veryFast] {
+            let additions = tier.particleCount - previousCount
+            guard additions % slowCount == 0 else {
+                assertionFailure("Activity tiers must add the same number of particles per phase stratum")
+                return phases
+            }
+
+            let additionsPerStratum = additions / slowCount
+            for insertion in 0..<additionsPerStratum {
+                var tierPhases: [Double] = []
+                tierPhases.reserveCapacity(slowCount)
+
+                for stratum in 0..<slowCount {
+                    let points = stratumPoints[stratum].sorted()
+                    var leftOffset = 0.0
+                    var rightOffset = stratumWidths[stratum]
+                    var widestGap = -Double.infinity
+
+                    for pointIndex in 0...points.count {
+                        let left = pointIndex == 0 ? 0 : points[pointIndex - 1]
+                        let right = pointIndex == points.count ? stratumWidths[stratum] : points[pointIndex]
+                        if right - left > widestGap {
+                            widestGap = right - left
+                            leftOffset = left
+                            rightOffset = right
+                        }
+                    }
+
+                    // Keep each split within 35–65% of its interval to bound both new gaps.
+                    let seedIndex = stratum + insertion * slowCount
+                    let splitJitter = (seed(seedIndex, salt: Double(tier.particleCount)) - 0.5) * 0.30
+                    let offset = leftOffset + (rightOffset - leftOffset) * (0.5 + splitJitter)
+                    stratumPoints[stratum].append(offset)
+                    tierPhases.append((stratumLeftEdges[stratum] + offset).truncatingRemainder(dividingBy: 1))
+                }
+
+                phases.append(contentsOf: tierPhases)
+            }
+            previousCount = tier.particleCount
+        }
+
+        assert(phases.count == maximumCount)
         return phases
     }
 
-    /// Inserts new phase seeds midway through the widest circular gaps in a deterministic order.
-    static func fillLargestGaps(around existing: [Double], count: Int) -> [Double] {
-        guard count > 0 else { return [] }
-        guard !existing.isEmpty else {
-            return (0..<count).map { (Double($0) + 0.5) / Double(count) }
-        }
+    /// Selects bright points and a nested sparkle subset by fixed-seed ranking inside each tier band.
+    private static func makeSelection() -> (brightIndices: Set<Int>, sparkleRanks: [Int: Int]) {
+        var brightIndices = Set<Int>()
+        var sparkleRanks: [Int: Int] = [:]
+        var previousParticleCount = 0
+        var previousBrightCount = 0
+        var previousSparkleCount = 0
 
-        var phases = existing.sorted()
-        var additions: [Double] = []
+        for tier in [TokenActivityLevel.slow, .medium, .fast, .veryFast] {
+            let band = Array(previousParticleCount..<tier.particleCount)
+            let addedBrightCount = tier.brightParticleCount - previousBrightCount
+            let newBrightIndices = Array(
+                band.sorted { seed($0, salt: 20) < seed($1, salt: 20) }
+                    .prefix(addedBrightCount)
+            )
+            brightIndices.formUnion(newBrightIndices)
 
-        for _ in 0..<count {
-            var largestGap = -Double.infinity
-            var midpoint = 0.0
-            for index in phases.indices {
-                let left = phases[index]
-                let right = index == phases.count - 1 ? phases[0] + 1 : phases[index + 1]
-                let gap = right - left
-                if gap > largestGap {
-                    largestGap = gap
-                    midpoint = (left + gap / 2).truncatingRemainder(dividingBy: 1)
-                }
+            let addedSparkleCount = tier.sparkleParticleCount - previousSparkleCount
+            let newSparkleIndices = newBrightIndices
+                .sorted { seed($0, salt: 21) < seed($1, salt: 21) }
+                .prefix(addedSparkleCount)
+            for (offset, index) in newSparkleIndices.enumerated() {
+                sparkleRanks[index] = previousSparkleCount + offset
             }
-            additions.append(midpoint)
-            phases.append(midpoint)
-            phases.sort()
+
+            previousParticleCount = tier.particleCount
+            previousBrightCount = tier.brightParticleCount
+            previousSparkleCount = tier.sparkleParticleCount
         }
-        return additions
+
+        return (brightIndices, sparkleRanks)
     }
 
     /// Produces stable pseudo-random-looking variation without runtime randomness or per-frame work.
