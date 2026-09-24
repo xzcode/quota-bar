@@ -132,8 +132,7 @@ struct DenseParticleStreamView: View {
         var currentPhases: [Double] = []
 
         for index in 0..<sourceCount {
-            let descriptor = DenseParticleDescriptor.all[index]
-            let raw = phaseAnchors[index] + max(0, now - phaseAnchorTime) / oldTravelTime * descriptor.speedMultiplier
+            let raw = phaseAnchors[index] + max(0, now - phaseAnchorTime) / oldTravelTime
             let phase = raw - floor(raw)
             anchors[index] = phase
             currentPhases.append(phase)
@@ -156,11 +155,10 @@ struct DenseParticleStreamView: View {
         hasInitialized = true
     }
 
-    /// Advances continuously from the last level-change anchor and wraps only outside the capsule.
+    /// Uses one shared tier velocity so phase gaps cannot drift into clusters over repeated wraps.
     private func currentPhase(for index: Int, at time: TimeInterval, travelTime: Double) -> Double {
         guard hasInitialized else { return DenseParticleDescriptor.all[index].phase }
-        let descriptor = DenseParticleDescriptor.all[index]
-        let raw = phaseAnchors[index] + max(0, time - phaseAnchorTime) / max(travelTime, 0.1) * descriptor.speedMultiplier
+        let raw = phaseAnchors[index] + max(0, time - phaseAnchorTime) / max(travelTime, 0.1)
         return raw - floor(raw)
     }
 
@@ -186,7 +184,6 @@ struct DenseParticleStreamView: View {
 private struct DenseParticleDescriptor {
     let phase: Double
     let lane: Int
-    let speedMultiplier: Double
     let size: CGFloat
     let opacity: Double
     let colorIndex: Int
@@ -200,11 +197,9 @@ private struct DenseParticleDescriptor {
             let isBright = brightIndices.contains(index)
             let sizeSeed = seed(index, salt: 1)
             let opacitySeed = seed(index, salt: 2)
-            let speedSeed = seed(index, salt: 3)
             return DenseParticleDescriptor(
                 phase: phases[index],
                 lane: index % 5,
-                speedMultiplier: 0.90 + speedSeed * 0.20,
                 size: isBright ? 2.4 + sizeSeed * 0.8 : 1.4 + sizeSeed * 0.8,
                 opacity: isBright ? 0.78 + opacitySeed * 0.20 : 0.34 + opacitySeed * 0.18,
                 colorIndex: index % 3,
@@ -229,6 +224,10 @@ private struct DenseParticleDescriptor {
     /// Inserts new phase seeds midway through the widest circular gaps in a deterministic order.
     static func fillLargestGaps(around existing: [Double], count: Int) -> [Double] {
         guard count > 0 else { return [] }
+        guard !existing.isEmpty else {
+            return (0..<count).map { (Double($0) + 0.5) / Double(count) }
+        }
+
         var phases = existing.sorted()
         var additions: [Double] = []
 
