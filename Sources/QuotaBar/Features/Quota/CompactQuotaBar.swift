@@ -53,14 +53,6 @@ struct CompactQuotaBar: View {
                 .allowsTightening(true)
                 .shadow(color: .black.opacity(0.25), radius: 2.5, y: 1)
 
-            if isStale && !isDemoMode {
-                Circle()
-                    .fill(.orange)
-                    .frame(width: 5, height: 5)
-                    .shadow(color: .black.opacity(0.25), radius: 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.leading, 9)
-            }
         }
         .clipShape(Capsule())
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .easeInOut(duration: 0.55), value: dangerState)

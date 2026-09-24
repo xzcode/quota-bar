@@ -47,6 +47,7 @@ struct DenseParticleStreamView: View {
             let y = laneY[descriptor.lane]
             let presence = presenceOpacity(for: index, progress: progress, transitioning: transitioning)
             guard presence > 0.001 else { continue }
+            let safeZone = textSafeZoneFactors(at: x, width: size.width)
 
             if descriptor.isBright {
                 drawBrightParticle(
@@ -54,7 +55,12 @@ struct DenseParticleStreamView: View {
                     descriptor: descriptor,
                     center: CGPoint(x: x, y: y),
                     color: brightColors[descriptor.colorIndex],
-                    presence: presence
+                    presence: presence,
+                    sparkle: sparkleSample(
+                        for: descriptor,
+                        at: elapsed,
+                        depthScale: safeZone.sparkleDepth
+                    )
                 )
             } else {
                 drawSoftParticle(
@@ -62,7 +68,8 @@ struct DenseParticleStreamView: View {
                     descriptor: descriptor,
                     center: CGPoint(x: x, y: y),
                     color: softColors[descriptor.colorIndex],
-                    presence: presence
+                    presence: presence,
+                    opacityMultiplier: safeZone.softParticleOpacity
                 )
             }
         }
@@ -74,7 +81,8 @@ struct DenseParticleStreamView: View {
         descriptor: DenseParticleDescriptor,
         center: CGPoint,
         color: Color,
-        presence: Double
+        presence: Double,
+        opacityMultiplier: Double
     ) {
         let diameter = descriptor.size
         let haloDiameter = diameter + 4
@@ -82,7 +90,11 @@ struct DenseParticleStreamView: View {
         context.fill(
             Path(ellipseIn: haloRect),
             with: .radialGradient(
-                Gradient(colors: [color.opacity(0.16 * presence), color.opacity(0.05 * presence), .clear]),
+                Gradient(colors: [
+                    color.opacity(0.16 * presence * opacityMultiplier),
+                    color.opacity(0.05 * presence * opacityMultiplier),
+                    .clear
+                ]),
                 center: center,
                 startRadius: 0,
                 endRadius: haloDiameter / 2
@@ -92,7 +104,7 @@ struct DenseParticleStreamView: View {
         let rect = CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter)
         context.fill(
             Path(ellipseIn: rect),
-            with: .color(color.opacity(descriptor.opacity * presence))
+            with: .color(color.opacity(descriptor.opacity * presence * opacityMultiplier))
         )
     }
 
@@ -102,15 +114,20 @@ struct DenseParticleStreamView: View {
         descriptor: DenseParticleDescriptor,
         center: CGPoint,
         color: Color,
-        presence: Double
+        presence: Double,
+        sparkle: SparkleSample
     ) {
         let coreDiameter = descriptor.size
-        let haloDiameter = coreDiameter + 4
+        let haloDiameter = (coreDiameter + 4) * sparkle.haloSizeMultiplier
         let haloRect = CGRect(x: center.x - haloDiameter / 2, y: center.y - haloDiameter / 2, width: haloDiameter, height: haloDiameter)
         context.fill(
             Path(ellipseIn: haloRect),
             with: .radialGradient(
-                Gradient(colors: [color.opacity(0.28 * presence), color.opacity(0.10 * presence), .clear]),
+                Gradient(colors: [
+                    color.opacity(0.28 * presence * sparkle.haloOpacityMultiplier),
+                    color.opacity(0.10 * presence * sparkle.haloOpacityMultiplier),
+                    .clear
+                ]),
                 center: center,
                 startRadius: 0,
                 endRadius: haloDiameter / 2
@@ -120,7 +137,42 @@ struct DenseParticleStreamView: View {
         let coreRect = CGRect(x: center.x - coreDiameter / 2, y: center.y - coreDiameter / 2, width: coreDiameter, height: coreDiameter)
         context.fill(
             Path(ellipseIn: coreRect),
-            with: .color(color.opacity(descriptor.opacity * presence))
+            with: .color(color.opacity(descriptor.opacity * presence * sparkle.coreMultiplier))
+        )
+    }
+
+    /// Smoothly protects the central labels without dimming the bar or a bright particle's core.
+    private func textSafeZoneFactors(at x: CGFloat, width: CGFloat) -> TextSafeZoneFactors {
+        let distanceFromCenter = abs(x / width - 0.5)
+        let rawProgress = min(1, max(0, (distanceFromCenter - 0.15) / 0.07))
+        let smoothProgress = rawProgress * rawProgress * (3 - 2 * rawProgress)
+        return TextSafeZoneFactors(
+            softParticleOpacity: 0.68 + 0.32 * smoothProgress,
+            sparkleDepth: 0.52 + 0.48 * smoothProgress
+        )
+    }
+
+    /// Uses the shared timeline and cached descriptor seeds for asynchronous, continuous twinkle.
+    private func sparkleSample(
+        for descriptor: DenseParticleDescriptor,
+        at time: TimeInterval,
+        depthScale: Double
+    ) -> SparkleSample {
+        guard descriptor.sparkleEnabled,
+              let rank = descriptor.sparkleRank,
+              rank < level.sparkleParticleCount else {
+            return .steady
+        }
+
+        let wave = 0.5 + 0.5 * sin(
+            2 * .pi * time * level.sparkleFrequencyHz * descriptor.twinkleSpeed
+                + descriptor.twinklePhase
+        )
+        let depth = min(0.38, level.sparkleDepth * descriptor.twinkleDepth * depthScale)
+        return SparkleSample(
+            coreMultiplier: 1 - depth + wave * depth,
+            haloOpacityMultiplier: 1 + (0.8 + 0.4 * wave - 1) * depthScale,
+            haloSizeMultiplier: 1 + (0.95 + 0.10 * wave - 1) * depthScale
         )
     }
 
@@ -192,6 +244,21 @@ struct DenseParticleStreamView: View {
 
 }
 
+/// Per-particle text-zone adjustments fade smoothly across the edge of the label area.
+private struct TextSafeZoneFactors {
+    let softParticleOpacity: Double
+    let sparkleDepth: Double
+}
+
+/// Multipliers stay at one for non-sparkling particles, avoiding any frame-to-frame brightness drift.
+private struct SparkleSample {
+    let coreMultiplier: Double
+    let haloOpacityMultiplier: Double
+    let haloSizeMultiplier: Double
+
+    static let steady = SparkleSample(coreMultiplier: 1, haloOpacityMultiplier: 1, haloSizeMultiplier: 1)
+}
+
 /// Immutable per-particle settings are calculated once and shared by all animation frames.
 private struct DenseParticleDescriptor {
     let phase: Double
@@ -200,22 +267,36 @@ private struct DenseParticleDescriptor {
     let opacity: Double
     let colorIndex: Int
     let isBright: Bool
+    let sparkleRank: Int?
+    let sparkleEnabled: Bool
+    let twinklePhase: Double
+    let twinkleSpeed: Double
+    let twinkleDepth: Double
 
     // One bright marker per eight stable particle IDs keeps highlight density proportional by tier.
     static let brightIndices = Set(stride(from: 2, to: TokenActivityLevel.veryFast.particleCount, by: 8))
     static let all: [DenseParticleDescriptor] = {
         let phases = stratifiedPhases()
+        let sparkleRanks = Dictionary(
+            uniqueKeysWithValues: brightIndices.sorted().enumerated().map { ($1, $0) }
+        )
         return phases.indices.map { index in
             let isBright = brightIndices.contains(index)
             let sizeSeed = seed(index, salt: 1)
             let opacitySeed = seed(index, salt: 2)
+            let sparkleRank = sparkleRanks[index]
             return DenseParticleDescriptor(
                 phase: phases[index],
                 lane: index % 5,
                 size: isBright ? 3.8 + sizeSeed * 0.6 : 2.8 + sizeSeed * 0.6,
                 opacity: isBright ? 0.78 + opacitySeed * 0.20 : 0.34 + opacitySeed * 0.18,
                 colorIndex: index % 3,
-                isBright: isBright
+                isBright: isBright,
+                sparkleRank: sparkleRank,
+                sparkleEnabled: sparkleRank.map { $0 < TokenActivityLevel.veryFast.sparkleParticleCount } ?? false,
+                twinklePhase: seed(index, salt: 3) * 2 * .pi,
+                twinkleSpeed: 0.9 + seed(index, salt: 4) * 0.2,
+                twinkleDepth: 0.9 + seed(index, salt: 5) * 0.2
             )
         }
     }()

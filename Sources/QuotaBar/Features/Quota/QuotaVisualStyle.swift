@@ -10,6 +10,18 @@ enum QuotaDangerState: Hashable {
 
 /// Centralized quota colors keep danger state separate from burn-rate motion.
 enum QuotaVisualStyle {
+    /// Adds a purple activity accent while leaving the quota-selected base palette untouched.
+    static func activityVioletAccent(for state: QuotaDangerState) -> Color {
+        switch state {
+        case .normal, .unknown:
+            return rgb(0x83, 0x5A, 0xF2)
+        case .low:
+            return rgb(0x9C, 0x55, 0xDD)
+        case .critical:
+            return rgb(0xAF, 0x48, 0xB8)
+        }
+    }
+
     /// Maps only danger thresholds to a compact palette; normal hue ignores the exact percentage.
     static func dangerState(remaining: Int?) -> QuotaDangerState {
         guard let remaining else { return .unknown }
