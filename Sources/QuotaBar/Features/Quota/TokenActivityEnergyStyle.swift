@@ -48,7 +48,7 @@ extension TokenActivityLevel {
         case .slow: return 4.5
         case .medium: return 3.2
         case .fast: return 2.2
-        case .veryFast: return 1.2
+        case .veryFast: return 0.7
         }
     }
 }

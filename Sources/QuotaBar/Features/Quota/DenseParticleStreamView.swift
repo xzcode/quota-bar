@@ -68,7 +68,7 @@ struct DenseParticleStreamView: View {
         }
     }
 
-    /// Draws a small subdued point with no line, tail, or per-frame brightness changes.
+    /// Draws a visible soft core and a faint radial halo without a tail or animated brightness.
     private func drawSoftParticle(
         in context: inout GraphicsContext,
         descriptor: DenseParticleDescriptor,
@@ -77,6 +77,18 @@ struct DenseParticleStreamView: View {
         presence: Double
     ) {
         let diameter = descriptor.size
+        let haloDiameter = diameter + 4
+        let haloRect = CGRect(x: center.x - haloDiameter / 2, y: center.y - haloDiameter / 2, width: haloDiameter, height: haloDiameter)
+        context.fill(
+            Path(ellipseIn: haloRect),
+            with: .radialGradient(
+                Gradient(colors: [color.opacity(0.16 * presence), color.opacity(0.05 * presence), .clear]),
+                center: center,
+                startRadius: 0,
+                endRadius: haloDiameter / 2
+            )
+        )
+
         let rect = CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter)
         context.fill(
             Path(ellipseIn: rect),
@@ -200,7 +212,7 @@ private struct DenseParticleDescriptor {
             return DenseParticleDescriptor(
                 phase: phases[index],
                 lane: index % 5,
-                size: isBright ? 2.4 + sizeSeed * 0.8 : 1.4 + sizeSeed * 0.8,
+                size: isBright ? 3.8 + sizeSeed * 0.6 : 2.8 + sizeSeed * 0.6,
                 opacity: isBright ? 0.78 + opacitySeed * 0.20 : 0.34 + opacitySeed * 0.18,
                 colorIndex: index % 3,
                 isBright: isBright
