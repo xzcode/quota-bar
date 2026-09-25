@@ -1,7 +1,7 @@
 import SwiftUI
 import CodexQuotaCore
 
-/// Keeps the compact motion to one soft glow and one Canvas particle stream.
+/// Composites five independent particle streams inside one Canvas and the existing shared clock.
 struct DynamicEnergyLayer: View {
     let level: TokenActivityLevel
     let elapsed: TimeInterval

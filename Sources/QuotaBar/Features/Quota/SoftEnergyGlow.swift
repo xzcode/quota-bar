@@ -10,6 +10,8 @@ struct SoftEnergyGlow: View {
         GeometryReader { geometry in
             let colors = QuotaVisualStyle.softEnergyParticlePalette(for: state)
             let violetAccent = QuotaVisualStyle.activityVioletAccent(for: state)
+            let violetCoverageStart = level.rightVioletCoverageStartX
+            let violetCoverageWidth = geometry.size.width * (1 - violetCoverageStart)
 
             ZStack {
                 Ellipse()
@@ -45,15 +47,14 @@ struct SoftEnergyGlow: View {
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0),
-                        .init(color: violetAccent.opacity(0.08), location: 0.45),
-                        .init(color: violetAccent.opacity(0.28), location: 1)
+                        .init(color: violetAccent.opacity(level.rightVioletAccent * 0.22), location: 0.42),
+                        .init(color: violetAccent.opacity(level.rightVioletAccent), location: 1)
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: geometry.size.width * 0.35, height: geometry.size.height)
-                .opacity(level.rightVioletOverlayOpacity)
-                .position(x: geometry.size.width * 0.825, y: geometry.size.height / 2)
+                .frame(width: violetCoverageWidth, height: geometry.size.height)
+                .position(x: geometry.size.width * (violetCoverageStart + (1 - violetCoverageStart) / 2), y: geometry.size.height / 2)
                 .animation(.easeInOut(duration: 0.55), value: level)
             }
         }

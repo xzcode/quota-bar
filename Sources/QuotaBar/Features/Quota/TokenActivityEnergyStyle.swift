@@ -1,25 +1,85 @@
 import Foundation
 import CodexQuotaCore
 
-/// Maps local token activity to dense-particle counts and timing without changing activity thresholds.
+/// Identifies the five independently phased, fixed-speed particle streams.
+enum ParticleStreamID: Int, CaseIterable {
+    case farLane0
+    case farLane4
+    case midLane1
+    case midLane3
+    case nearLane2
+
+    var lane: Int {
+        switch self {
+        case .farLane0: return 0
+        case .farLane4: return 4
+        case .midLane1: return 1
+        case .midLane3: return 3
+        case .nearLane2: return 2
+        }
+    }
+
+    /// Stream velocity is stable for its whole lane; activity only changes the shared base speed.
+    var speedMultiplier: Double {
+        switch self {
+        case .farLane0: return 0.60
+        case .farLane4: return 0.64
+        case .midLane1: return 1.00
+        case .midLane3: return 1.05
+        case .nearLane2: return 1.65
+        }
+    }
+
+    /// Stream counts sum to layer totals 16/10/4, 24/18/6, 34/26/8, and 46/34/10.
+    func particleCount(for level: TokenActivityLevel) -> Int {
+        switch self {
+        case .farLane0, .farLane4:
+            switch level {
+            case .calm: return 0
+            case .slow: return 8
+            case .medium: return 12
+            case .fast: return 17
+            case .veryFast: return 23
+            }
+        case .midLane1, .midLane3:
+            switch level {
+            case .calm: return 0
+            case .slow: return 5
+            case .medium: return 9
+            case .fast: return 13
+            case .veryFast: return 17
+            }
+        case .nearLane2:
+            switch level {
+            case .calm: return 0
+            case .slow: return 4
+            case .medium: return 6
+            case .fast: return 8
+            case .veryFast: return 10
+            }
+        }
+    }
+}
+
+/// Maps local token activity to particle styling and timing without changing activity thresholds.
 extension TokenActivityLevel {
     var rightVioletAccent: Double {
         switch self {
         case .calm: return 0
-        case .slow: return 0.07
-        case .medium: return 0.12
-        case .fast: return 0.22
-        case .veryFast: return 0.32
+        case .slow: return 0.12
+        case .medium: return 0.19
+        case .fast: return 0.28
+        case .veryFast: return 0.39
         }
     }
 
-    var rightVioletOverlayOpacity: Double {
+    var rightVioletCoverageStartX: CGFloat {
         switch self {
-        case .calm: return 0
-        case .slow: return 0.24
-        case .medium: return 0.44
-        case .fast: return 0.64
-        case .veryFast: return 0.80
+        case .calm: return 0.82
+        case .slow: return 0.78
+        case .medium: return 0.72
+        case .fast: return 0.63
+        case .veryFast: return 0.52
         }
     }
 
@@ -34,33 +94,17 @@ extension TokenActivityLevel {
     }
 
     var farParticleCount: Int {
-        switch self {
-        case .calm: return 0
-        case .slow: return 7
-        case .medium: return 9
-        case .fast: return 12
-        case .veryFast: return 14
-        }
+        ParticleStreamID.farLane0.particleCount(for: self)
+            + ParticleStreamID.farLane4.particleCount(for: self)
     }
 
     var midParticleCount: Int {
-        switch self {
-        case .calm: return 0
-        case .slow: return 7
-        case .medium: return 11
-        case .fast: return 14
-        case .veryFast: return 19
-        }
+        ParticleStreamID.midLane1.particleCount(for: self)
+            + ParticleStreamID.midLane3.particleCount(for: self)
     }
 
     var nearParticleCount: Int {
-        switch self {
-        case .calm: return 0
-        case .slow: return 2
-        case .medium: return 4
-        case .fast: return 5
-        case .veryFast: return 7
-        }
+        ParticleStreamID.nearLane2.particleCount(for: self)
     }
 
     var particleCount: Int {

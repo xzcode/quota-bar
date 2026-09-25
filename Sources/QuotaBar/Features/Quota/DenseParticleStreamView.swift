@@ -7,14 +7,13 @@ struct DenseParticleStreamView: View {
     let elapsed: TimeInterval
     let state: QuotaDangerState
 
-    @State private var phaseAnchors = DenseParticleDescriptor.all.map(\.phase)
+    @State private var phaseAnchors = ParticleFlowSystem.streams.map { $0.particles.map(\.phase) }
     @State private var phaseAnchorTime: TimeInterval = 0
     @State private var transitionStart: TimeInterval = 0
-    @State private var transitionSourceCount = 0
+    @State private var transitionSourceCounts = ParticleStreamID.allCases.map { $0.particleCount(for: .calm) }
     @State private var hasInitialized = false
 
     private let laneY: [CGFloat] = [6.5, 11.5, 16, 20.5, 25.5]
-    private let laneSpeedMultiplier: [Double] = [0.95, 0.97, 1.00, 1.03, 1.05]
     private let wrapMargin: CGFloat = 6
     private let transitionDuration: TimeInterval = 0.28
 
@@ -35,51 +34,71 @@ struct DenseParticleStreamView: View {
         let softColors = QuotaVisualStyle.softEnergyParticlePalette(for: state)
         let brightColors = QuotaVisualStyle.brightEnergyParticlePalette(for: state)
         let progress = transitionProgress(at: elapsed)
+        let transitionSourceTotal = transitionSourceCounts.reduce(0, +)
         let transitioning = hasInitialized
             && elapsed - transitionStart < transitionDuration
-            && transitionSourceCount != level.particleCount
-        let visibleCount = transitioning ? max(transitionSourceCount, level.particleCount) : level.particleCount
+            && transitionSourceTotal != level.particleCount
         let distance = size.width + wrapMargin * 2
         let violetAccent = QuotaVisualStyle.activityVioletAccent(for: state)
 
-        // Render far-to-near so the foreground cores naturally sit above the subdued layers.
-        for index in DenseParticleDescriptor.drawOrder where index < visibleCount {
-            let descriptor = DenseParticleDescriptor.all[index]
-            let phase = currentPhase(for: index, at: elapsed, travelTime: level.particleTravelSeconds)
-            let x = size.width + wrapMargin - CGFloat(phase) * distance
-            let y = laneY[descriptor.lane]
-            let presence = presenceOpacity(for: index, progress: progress, transitioning: transitioning)
-            guard presence > 0.001 else { continue }
-            let safeZone = textSafeZoneFactors(at: x, width: size.width, layer: descriptor.depthLayer)
-            let violetTint = rightVioletTint(at: x, width: size.width, layer: descriptor.depthLayer)
+        // Streams are kept in far-to-near order; each lane draws only its own phase sequence.
+        for streamIndex in ParticleFlowSystem.streams.indices {
+            let stream = ParticleFlowSystem.streams[streamIndex]
+            let targetCount = stream.id.particleCount(for: level)
+            let sourceCount = transitionSourceCounts[streamIndex]
+            let visibleCount = transitioning ? max(sourceCount, targetCount) : targetCount
 
-            if descriptor.isBright {
-                drawBrightParticle(
-                    in: &context,
-                    descriptor: descriptor,
-                    center: CGPoint(x: x, y: y),
-                    color: brightColors[descriptor.colorIndex],
-                    presence: presence,
-                    opacityMultiplier: safeZone.particleOpacity,
-                    violetAccent: violetAccent,
-                    violetTint: violetTint,
-                    sparkle: sparkleSample(
-                        for: descriptor,
-                        at: elapsed,
-                        depthScale: safeZone.sparkleDepth
+            for particleIndex in 0..<visibleCount {
+                let descriptor = stream.particles[particleIndex]
+                let phase = currentPhase(
+                    streamIndex: streamIndex,
+                    particleIndex: particleIndex,
+                    at: elapsed,
+                    travelTime: level.particleTravelSeconds,
+                    speedMultiplier: stream.id.speedMultiplier
+                )
+                let x = size.width + wrapMargin - CGFloat(phase) * distance
+                let y = laneY[stream.id.lane]
+                let presence = presenceOpacity(
+                    for: particleIndex,
+                    sourceCount: sourceCount,
+                    targetCount: targetCount,
+                    progress: progress,
+                    transitioning: transitioning
+                )
+                guard presence > 0.001 else { continue }
+                let safeZone = textSafeZoneFactors(at: x, width: size.width, layer: stream.depthLayer)
+                let violetTint = rightVioletTint(at: x, width: size.width, layer: stream.depthLayer)
+
+                if descriptor.isBright {
+                    drawBrightParticle(
+                        in: &context,
+                        descriptor: descriptor,
+                        center: CGPoint(x: x, y: y),
+                        color: brightColors[descriptor.colorIndex],
+                        presence: presence,
+                        opacityMultiplier: safeZone.particleOpacity,
+                        violetAccent: violetAccent,
+                        violetTint: violetTint,
+                        sparkle: sparkleSample(
+                            for: descriptor,
+                            at: elapsed,
+                            depthScale: safeZone.sparkleDepth
+                        )
                     )
-                )
-            } else {
-                drawSoftParticle(
-                    in: &context,
-                    descriptor: descriptor,
-                    center: CGPoint(x: x, y: y),
-                    color: softColors[descriptor.colorIndex],
-                    presence: presence,
-                    opacityMultiplier: safeZone.particleOpacity,
-                    violetAccent: violetAccent,
-                    violetTint: violetTint
-                )
+                } else {
+                    drawSoftParticle(
+                        in: &context,
+                        descriptor: descriptor,
+                        layer: stream.depthLayer,
+                        center: CGPoint(x: x, y: y),
+                        color: softColors[descriptor.colorIndex],
+                        presence: presence,
+                        opacityMultiplier: safeZone.particleOpacity,
+                        violetAccent: violetAccent,
+                        violetTint: violetTint
+                    )
+                }
             }
         }
     }
@@ -88,6 +107,7 @@ struct DenseParticleStreamView: View {
     private func drawSoftParticle(
         in context: inout GraphicsContext,
         descriptor: DenseParticleDescriptor,
+        layer: ParticleDepthLayer,
         center: CGPoint,
         color: Color,
         presence: Double,
@@ -96,7 +116,7 @@ struct DenseParticleStreamView: View {
         violetTint: Double
     ) {
         let diameter = descriptor.size
-        if descriptor.depthLayer == .near {
+        if case .near = layer {
             let haloDiameter = diameter + 4
             let haloRect = CGRect(x: center.x - haloDiameter / 2, y: center.y - haloDiameter / 2, width: haloDiameter, height: haloDiameter)
             context.fill(
@@ -190,7 +210,8 @@ struct DenseParticleStreamView: View {
         case .mid: layerWeight = 0.65
         case .near: layerWeight = 1
         }
-        let rawProgress = min(1, max(0, (x / width - 0.65) / 0.35))
+        let coverageStart = level.rightVioletCoverageStartX
+        let rawProgress = min(1, max(0, (x / width - coverageStart) / max(0.01, 1 - coverageStart)))
         let smoothProgress = rawProgress * rawProgress * (3 - 2 * rawProgress)
         return level.rightVioletParticleTint * layerWeight * smoothProgress
     }
@@ -219,65 +240,86 @@ struct DenseParticleStreamView: View {
         )
     }
 
-    /// Establishes each particle's initial stratified phase once when the animated layer appears.
+    /// Establishes all five independently stratified stream anchors when animation starts.
     private func initializePhases() {
         guard !hasInitialized else { return }
-        phaseAnchors = DenseParticleDescriptor.all.map(\.phase)
+        phaseAnchors = ParticleFlowSystem.streams.map { $0.particles.map(\.phase) }
         phaseAnchorTime = elapsed
         transitionStart = elapsed
-        transitionSourceCount = level.particleCount
+        transitionSourceCounts = ParticleFlowSystem.streams.map { $0.id.particleCount(for: level) }
         hasInitialized = true
     }
 
-    /// Preserves visible particles and introduces additions at their deterministic descriptor phases.
+    /// Preserves active stream positions and inserts new points at phase offsets matching that stream.
     private func preservePhases(from oldLevel: TokenActivityLevel, to newLevel: TokenActivityLevel) {
         let now = elapsed
         let inPriorTransition = now - transitionStart < transitionDuration
-        let sourceCount = max(oldLevel.particleCount, inPriorTransition ? transitionSourceCount : 0)
         let oldTravelTime = max(oldLevel.particleTravelSeconds, 0.1)
         var anchors = phaseAnchors
+        var sourceCounts: [Int] = []
+        sourceCounts.reserveCapacity(ParticleFlowSystem.streams.count)
 
-        for index in 0..<sourceCount {
-            let descriptor = DenseParticleDescriptor.all[index]
-            let laneSpeed = laneSpeedMultiplier[descriptor.lane]
-            let effectiveTravelTime = oldTravelTime * descriptor.depthLayer.travelTimeMultiplier
-            let raw = phaseAnchors[index]
-                + max(0, now - phaseAnchorTime) / effectiveTravelTime * laneSpeed
-            let phase = raw - floor(raw)
-            anchors[index] = phase
-        }
+        for streamIndex in ParticleFlowSystem.streams.indices {
+            let stream = ParticleFlowSystem.streams[streamIndex]
+            let oldCount = stream.id.particleCount(for: oldLevel)
+            let previousVisibleCount = inPriorTransition ? transitionSourceCounts[streamIndex] : 0
+            let sourceCount = max(oldCount, previousVisibleCount)
+            let targetCount = stream.id.particleCount(for: newLevel)
+            let phaseAdvance = max(0, now - phaseAnchorTime) / oldTravelTime * stream.id.speedMultiplier
 
-        if newLevel.particleCount > sourceCount {
-            for index in sourceCount..<newLevel.particleCount {
-                anchors[index] = DenseParticleDescriptor.all[index].phase
+            for particleIndex in 0..<sourceCount {
+                anchors[streamIndex][particleIndex] = wrappedPhase(phaseAnchors[streamIndex][particleIndex] + phaseAdvance)
             }
+
+            if targetCount > sourceCount {
+                // The shared stream offset keeps additions nested with particles that have already moved.
+                let streamOffset = sourceCount > 0
+                    ? wrappedPhase(anchors[streamIndex][0] - stream.particles[0].phase)
+                    : 0
+                for particleIndex in sourceCount..<targetCount {
+                    anchors[streamIndex][particleIndex] = wrappedPhase(stream.particles[particleIndex].phase + streamOffset)
+                }
+            }
+
+            sourceCounts.append(sourceCount)
         }
 
         phaseAnchors = anchors
+        transitionSourceCounts = sourceCounts
         phaseAnchorTime = now
         transitionStart = now
-        transitionSourceCount = sourceCount
         hasInitialized = true
     }
 
-    /// Applies one fixed velocity per lane, preserving same-lane spacing while lanes slowly drift apart.
-    private func currentPhase(for index: Int, at time: TimeInterval, travelTime: Double) -> Double {
-        guard hasInitialized else { return DenseParticleDescriptor.all[index].phase }
-        let descriptor = DenseParticleDescriptor.all[index]
-        let laneSpeed = laneSpeedMultiplier[descriptor.lane]
-        let effectiveTravelTime = max(travelTime, 0.1) * descriptor.depthLayer.travelTimeMultiplier
-        let raw = phaseAnchors[index]
-            + max(0, time - phaseAnchorTime) / effectiveTravelTime * laneSpeed
-        return raw - floor(raw)
+    /// Advances one point at its stream's shared speed and wraps only that point's phase.
+    private func currentPhase(
+        streamIndex: Int,
+        particleIndex: Int,
+        at time: TimeInterval,
+        travelTime: Double,
+        speedMultiplier: Double
+    ) -> Double {
+        guard hasInitialized else {
+            return ParticleFlowSystem.streams[streamIndex].particles[particleIndex].phase
+        }
+        let raw = phaseAnchors[streamIndex][particleIndex]
+            + max(0, time - phaseAnchorTime) / max(travelTime, 0.1) * speedMultiplier
+        return wrappedPhase(raw)
     }
 
-    /// Keeps additions and removals visible for a short, smooth transition instead of resetting the set.
-    private func presenceOpacity(for index: Int, progress: Double, transitioning: Bool) -> Double {
+    /// Fades only the per-stream additions/removals without restarting any existing stream.
+    private func presenceOpacity(
+        for particleIndex: Int,
+        sourceCount: Int,
+        targetCount: Int,
+        progress: Double,
+        transitioning: Bool
+    ) -> Double {
         guard transitioning else { return 1 }
-        if level.particleCount > transitionSourceCount && index >= transitionSourceCount {
+        if targetCount > sourceCount && particleIndex >= sourceCount {
             return progress
         }
-        if transitionSourceCount > level.particleCount && index >= level.particleCount {
+        if sourceCount > targetCount && particleIndex >= targetCount {
             return 1 - progress
         }
         return 1
@@ -285,6 +327,10 @@ struct DenseParticleStreamView: View {
 
     private func transitionProgress(at time: TimeInterval) -> Double {
         min(1, max(0, (time - transitionStart) / transitionDuration))
+    }
+
+    private func wrappedPhase(_ phase: Double) -> Double {
+        phase - floor(phase)
     }
 
 }
@@ -302,205 +348,4 @@ private struct SparkleSample {
     let haloSizeMultiplier: Double
 
     static let steady = SparkleSample(coreMultiplier: 1, haloOpacityMultiplier: 1, haloSizeMultiplier: 1)
-}
-
-/// Assigns each point to a stable depth layer whose speed, size, and brightness travel together.
-private enum ParticleDepthLayer: Int {
-    case far
-    case mid
-    case near
-
-    var travelTimeMultiplier: Double {
-        switch self {
-        case .far: return 1.55
-        case .mid: return 1.00
-        case .near: return 0.70
-        }
-    }
-}
-
-/// Immutable spatial placement shared by all activity tiers and render frames.
-private struct ParticlePlacement {
-    let depthLayer: ParticleDepthLayer
-    let lane: Int
-}
-
-/// Immutable per-particle settings are calculated once and shared by all animation frames.
-private struct DenseParticleDescriptor {
-    let phase: Double
-    let lane: Int
-    let depthLayer: ParticleDepthLayer
-    let size: CGFloat
-    let opacity: Double
-    let colorIndex: Int
-    let isBright: Bool
-    let sparkleRank: Int?
-    let sparkleEnabled: Bool
-    let twinklePhase: Double
-    let twinkleSpeed: Double
-    let twinkleDepth: Double
-
-    /// Tier-banded fixed-seed selections preserve each activity level's exact bright/sparkle counts.
-    private static let selection = makeSelection()
-    static let brightIndices = selection.brightIndices
-    private static let sparkleRanks = selection.sparkleRanks
-    private static let placements = makePlacements()
-
-    static let all: [DenseParticleDescriptor] = {
-        let phases = stratifiedPhases()
-        return phases.indices.map { index in
-            let isBright = brightIndices.contains(index)
-            let sizeSeed = seed(index, salt: 1)
-            let opacitySeed = seed(index, salt: 2)
-            let sparkleRank = sparkleRanks[index]
-            let placement = placements[index]
-            let size: CGFloat
-            let opacity: Double
-            switch placement.depthLayer {
-            case .far:
-                size = 0.70 + sizeSeed * 0.50
-                opacity = 0.08 + opacitySeed * 0.12
-            case .mid:
-                size = 1.20 + sizeSeed * 0.70
-                opacity = 0.18 + opacitySeed * 0.24
-            case .near:
-                size = isBright ? 2.80 + sizeSeed * 0.80 : 2.00 + sizeSeed * 1.10
-                opacity = isBright ? 0.68 + opacitySeed * 0.27 : 0.48 + opacitySeed * 0.36
-            }
-            return DenseParticleDescriptor(
-                phase: phases[index],
-                lane: placement.lane,
-                depthLayer: placement.depthLayer,
-                size: size,
-                opacity: opacity,
-                colorIndex: index % 3,
-                isBright: isBright,
-                sparkleRank: sparkleRank,
-                sparkleEnabled: sparkleRank != nil,
-                twinklePhase: seed(index, salt: 3) * 2 * .pi,
-                twinkleSpeed: 0.9 + seed(index, salt: 4) * 0.2,
-                twinkleDepth: 0.9 + seed(index, salt: 5) * 0.2
-            )
-        }
-    }()
-
-    /// Builds nested jittered phases by splitting distinct circular gaps with fixed-seed offsets.
-    private static func stratifiedPhases() -> [Double] {
-        let slowCount = TokenActivityLevel.slow.particleCount
-        let maximumCount = TokenActivityLevel.veryFast.particleCount
-        let slotWidth = 1.0 / Double(slowCount)
-        var phases = (0..<slowCount).map { index in
-            let center = (Double(index) + 0.5) * slotWidth
-            let jitter = (seed(index, salt: 6) - 0.5) * slotWidth * 0.60
-            return center + jitter
-        }
-        var previousCount = slowCount
-
-        for tier in [TokenActivityLevel.medium, .fast, .veryFast] {
-            let additions = tier.particleCount - previousCount
-            let orderedPhases = phases.sorted()
-            let averageGap = 1.0 / Double(orderedPhases.count)
-            let rankedGaps = orderedPhases.indices.map { index -> (index: Int, start: Double, end: Double, score: Double) in
-                let start = orderedPhases[index]
-                let end = index == orderedPhases.count - 1 ? orderedPhases[0] + 1 : orderedPhases[index + 1]
-                let width = end - start
-                let gapBalance = min(2, width / averageGap)
-                let stableJitter = seed(index + tier.particleCount, salt: 7)
-                return (index, start, end, gapBalance * 0.65 + stableJitter * 0.35)
-            }
-            let chosenGaps = rankedGaps.sorted { lhs, rhs in
-                lhs.score == rhs.score ? lhs.index < rhs.index : lhs.score > rhs.score
-            }.prefix(additions)
-
-            // Bounded 35–65% splits keep each new particle away from its adjacent points.
-            let additionsForTier = chosenGaps.map { gap in
-                let fraction = 0.35 + seed(gap.index + tier.particleCount, salt: 8) * 0.30
-                return (gap.start + (gap.end - gap.start) * fraction).truncatingRemainder(dividingBy: 1)
-            }
-            phases.append(contentsOf: additionsForTier)
-            previousCount = tier.particleCount
-        }
-
-        assert(phases.count == maximumCount)
-        return phases
-    }
-
-    /// Assigns tier additions to paired outer/middle lanes and the central foreground lane.
-    private static func makePlacements() -> [ParticlePlacement] {
-        var result: [ParticlePlacement] = []
-        var laneUse = Array(repeating: 0, count: 5)
-        var previousFar = 0
-        var previousMid = 0
-        var previousNear = 0
-
-        func append(_ layer: ParticleDepthLayer, count: Int, candidateLanes: [Int]) {
-            for _ in 0..<max(0, count) {
-                let minimumUse = candidateLanes.map { laneUse[$0] }.min() ?? 0
-                let tiedLanes = candidateLanes.filter { laneUse[$0] == minimumUse }
-                let index = result.count
-                let tieIndex = min(tiedLanes.count - 1, Int(seed(index, salt: 30) * Double(tiedLanes.count)))
-                let lane = tiedLanes[tieIndex]
-                laneUse[lane] += 1
-                result.append(ParticlePlacement(depthLayer: layer, lane: lane))
-            }
-        }
-
-        for tier in [TokenActivityLevel.slow, .medium, .fast, .veryFast] {
-            append(.far, count: tier.farParticleCount - previousFar, candidateLanes: [0, 4])
-            append(.mid, count: tier.midParticleCount - previousMid, candidateLanes: [1, 3])
-            append(.near, count: tier.nearParticleCount - previousNear, candidateLanes: [2])
-            previousFar = tier.farParticleCount
-            previousMid = tier.midParticleCount
-            previousNear = tier.nearParticleCount
-        }
-
-        assert(result.count == TokenActivityLevel.veryFast.particleCount)
-        return result
-    }
-
-    /// Selects bright points and a nested sparkle subset by fixed-seed ranking inside each tier band.
-    private static func makeSelection() -> (brightIndices: Set<Int>, sparkleRanks: [Int: Int]) {
-        var brightIndices = Set<Int>()
-        var sparkleRanks: [Int: Int] = [:]
-        var previousParticleCount = 0
-        var previousBrightCount = 0
-        var previousSparkleCount = 0
-
-        for tier in [TokenActivityLevel.slow, .medium, .fast, .veryFast] {
-            let band = Array(previousParticleCount..<tier.particleCount)
-            let addedBrightCount = tier.brightParticleCount - previousBrightCount
-            let nearCandidates = band.filter { placements[$0].depthLayer == .near }
-            let newBrightIndices = Array(
-                nearCandidates.sorted { seed($0, salt: 20) < seed($1, salt: 20) }
-                    .prefix(addedBrightCount)
-            )
-            brightIndices.formUnion(newBrightIndices)
-
-            let addedSparkleCount = tier.sparkleParticleCount - previousSparkleCount
-            let newSparkleIndices = newBrightIndices
-                .sorted { seed($0, salt: 21) < seed($1, salt: 21) }
-                .prefix(addedSparkleCount)
-            for (offset, index) in newSparkleIndices.enumerated() {
-                sparkleRanks[index] = previousSparkleCount + offset
-            }
-
-            previousParticleCount = tier.particleCount
-            previousBrightCount = tier.brightParticleCount
-            previousSparkleCount = tier.sparkleParticleCount
-        }
-
-        return (brightIndices, sparkleRanks)
-    }
-
-    /// Produces stable pseudo-random-looking variation without runtime randomness or per-frame work.
-    private static func seed(_ index: Int, salt: Double) -> Double {
-        let value = sin(Double(index + 1) * 12.9898 + salt * 78.233) * 43_758.5453
-        return value - floor(value)
-    }
-
-    /// Cached back-to-front order avoids sorting or building layer groups during Canvas rendering.
-    static let drawOrder: [Int] = all.indices.sorted {
-        if all[$0].depthLayer.rawValue == all[$1].depthLayer.rawValue { return $0 < $1 }
-        return all[$0].depthLayer.rawValue < all[$1].depthLayer.rawValue
-    }
 }
