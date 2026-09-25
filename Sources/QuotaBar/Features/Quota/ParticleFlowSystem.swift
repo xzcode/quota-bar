@@ -56,14 +56,14 @@ enum ParticleFlowSystem {
 
             switch depthLayer {
             case .far:
-                size = 0.70 + sizeSeed * 0.50
-                opacity = 0.08 + opacitySeed * 0.12
+                size = 1.15 + sizeSeed * 0.45
+                opacity = 0.18 + opacitySeed * 0.14
             case .mid:
-                size = 1.20 + sizeSeed * 0.70
-                opacity = 0.18 + opacitySeed * 0.24
+                size = 1.70 + sizeSeed * 0.75
+                opacity = 0.34 + opacitySeed * 0.22
             case .near:
-                size = isBright ? 2.80 + sizeSeed * 0.80 : 2.00 + sizeSeed * 1.10
-                opacity = isBright ? 0.68 + opacitySeed * 0.27 : 0.48 + opacitySeed * 0.36
+                size = isBright ? 3.20 + sizeSeed * 0.40 : 2.60 + sizeSeed * 0.80
+                opacity = isBright ? 0.78 + opacitySeed * 0.17 : 0.58 + opacitySeed * 0.32
             }
 
             return DenseParticleDescriptor(
