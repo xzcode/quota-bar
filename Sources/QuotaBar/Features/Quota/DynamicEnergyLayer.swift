@@ -1,7 +1,7 @@
 import SwiftUI
 import CodexQuotaCore
 
-/// Composites depth/lane particle streams inside one Canvas and the existing shared clock.
+/// Composites depth/lane emitters inside one Canvas and the existing shared clock.
 struct DynamicEnergyLayer: View {
     let level: TokenActivityLevel
     let elapsed: TimeInterval

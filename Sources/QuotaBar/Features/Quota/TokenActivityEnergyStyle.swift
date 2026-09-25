@@ -1,7 +1,7 @@
 import Foundation
 import CodexQuotaCore
 
-/// Identifies one independently phased, fixed-speed stream for each active depth/lane pair.
+/// Identifies one independently randomized, fixed-speed emitter for each active depth/lane pair.
 enum ParticleStreamID: Int, CaseIterable {
     case farLane0
     case farLane1
@@ -34,72 +34,114 @@ enum ParticleStreamID: Int, CaseIterable {
         }
     }
 
-    /// Stream velocity is stable for its whole lane; activity only changes the shared base speed.
+    /// Lane-specific velocities keep neighboring emitters from synchronizing.
     var speedMultiplier: Double {
         switch self {
-        case .farLane0: return 0.60
-        case .farLane1, .farLane3: return 0.62
+        case .farLane0: return 0.58
+        case .farLane1: return 0.61
         case .farLane2: return 0.64
-        case .farLane4: return 0.60
-        case .midLane1: return 1.00
-        case .midLane2: return 1.02
-        case .midLane3: return 1.05
-        case .midLane4: return 1.03
-        case .nearLane1, .nearLane3: return 1.55
-        case .nearLane2: return 1.65
+        case .farLane3: return 0.60
+        case .farLane4: return 0.57
+        case .midLane1: return 0.96
+        case .midLane2: return 1.00
+        case .midLane3: return 1.04
+        case .midLane4: return 1.02
+        case .nearLane1: return 1.55
+        case .nearLane2: return 1.70
+        case .nearLane3: return 1.60
         }
     }
 
-    /// Independent lane counts sum to the density targets defined for each depth layer.
+    /// Allocates the higher organic-emitter density independently across each depth and lane.
     func particleCount(for level: TokenActivityLevel) -> Int {
         switch self {
-        case .farLane0, .farLane1:
+        case .farLane0:
             switch level {
             case .calm: return 0
-            case .slow: return 4
-            case .medium: return 6
-            case .fast: return 8
-            case .veryFast: return 11
+            case .slow: return 10
+            case .medium: return 14
+            case .fast: return 20
+            case .veryFast: return 26
+            }
+        case .farLane1:
+            switch level {
+            case .calm: return 0
+            case .slow: return 10
+            case .medium: return 14
+            case .fast: return 22
+            case .veryFast: return 28
             }
         case .farLane2:
             switch level {
             case .calm: return 0
-            case .slow: return 4
-            case .medium: return 6
-            case .fast: return 8
-            case .veryFast: return 10
+            case .slow: return 10
+            case .medium: return 16
+            case .fast: return 20
+            case .veryFast: return 28
             }
-        case .farLane3, .farLane4:
+        case .farLane3:
             switch level {
             case .calm: return 0
-            case .slow: return 3
-            case .medium: return 5
-            case .fast: return 8
-            case .veryFast: return 11
+            case .slow: return 10
+            case .medium: return 14
+            case .fast: return 22
+            case .veryFast: return 28
             }
-        case .midLane1, .midLane2, .midLane3, .midLane4:
+        case .farLane4:
             switch level {
             case .calm: return 0
-            case .slow: return 3
-            case .medium: return 5
-            case .fast: return 7
-            case .veryFast: return 9
+            case .slow: return 8
+            case .medium: return 14
+            case .fast: return 20
+            case .veryFast: return 26
+            }
+        case .midLane1:
+            switch level {
+            case .calm: return 0
+            case .slow: return 6
+            case .medium: return 10
+            case .fast: return 16
+            case .veryFast: return 20
+            }
+        case .midLane2:
+            switch level {
+            case .calm: return 0
+            case .slow: return 8
+            case .medium: return 12
+            case .fast: return 16
+            case .veryFast: return 22
+            }
+        case .midLane3:
+            switch level {
+            case .calm: return 0
+            case .slow: return 8
+            case .medium: return 12
+            case .fast: return 16
+            case .veryFast: return 22
+            }
+        case .midLane4:
+            switch level {
+            case .calm: return 0
+            case .slow: return 6
+            case .medium: return 10
+            case .fast: return 16
+            case .veryFast: return 20
             }
         case .nearLane1, .nearLane3:
             switch level {
             case .calm: return 0
-            case .slow: return 1
-            case .medium: return 2
-            case .fast: return 3
-            case .veryFast: return 3
+            case .slow: return 2
+            case .medium: return 4
+            case .fast: return 6
+            case .veryFast: return 8
             }
         case .nearLane2:
             switch level {
             case .calm: return 0
-            case .slow: return 3
-            case .medium: return 3
-            case .fast: return 4
-            case .veryFast: return 8
+            case .slow: return 8
+            case .medium: return 8
+            case .fast: return 12
+            case .veryFast: return 16
             }
         }
     }
@@ -110,18 +152,18 @@ enum ParticleStreamID: Int, CaseIterable {
         case .nearLane1:
             switch level {
             case .calm, .slow: return 0
-            case .medium, .fast, .veryFast: return 1
+            case .medium, .fast, .veryFast: return 2
             }
         case .nearLane2:
             switch level {
             case .calm: return 0
-            case .slow, .medium, .fast: return 1
-            case .veryFast: return 3
+            case .slow, .medium, .fast: return 2
+            case .veryFast: return 6
             }
         case .nearLane3:
             switch level {
             case .calm, .slow, .medium: return 0
-            case .fast, .veryFast: return 1
+            case .fast, .veryFast: return 2
             }
         default:
             return 0
@@ -134,12 +176,12 @@ enum ParticleStreamID: Int, CaseIterable {
         case .nearLane1:
             switch level {
             case .calm, .slow: return 0
-            case .medium, .fast, .veryFast: return 1
+            case .medium, .fast, .veryFast: return 2
             }
         case .nearLane3:
             switch level {
             case .calm, .slow, .medium: return 0
-            case .fast, .veryFast: return 1
+            case .fast, .veryFast: return 2
             }
         default:
             return 0
@@ -150,19 +192,19 @@ enum ParticleStreamID: Int, CaseIterable {
     func midAccentParticleCount(for level: TokenActivityLevel) -> Int {
         switch self {
         case .midLane1:
-            return level == .calm ? 0 : 1
+            return level == .calm ? 0 : 2
         case .midLane2:
             switch level {
             case .calm, .slow: return 0
-            case .medium, .fast, .veryFast: return 1
+            case .medium, .fast, .veryFast: return 2
             }
         case .midLane3:
             switch level {
             case .calm, .slow, .medium: return 0
-            case .fast, .veryFast: return 1
+            case .fast, .veryFast: return 2
             }
         case .midLane4:
-            return level == .veryFast ? 1 : 0
+            return level == .veryFast ? 2 : 0
         default:
             return 0
         }
@@ -250,10 +292,10 @@ extension TokenActivityLevel {
     var sparkleParticleCount: Int {
         switch self {
         case .calm: return 0
-        case .slow: return 1
-        case .medium: return 2
-        case .fast: return 3
-        case .veryFast: return 5
+        case .slow: return 2
+        case .medium: return 4
+        case .fast: return 6
+        case .veryFast: return 10
         }
     }
 

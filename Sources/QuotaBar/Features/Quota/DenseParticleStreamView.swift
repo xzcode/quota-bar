@@ -1,71 +1,125 @@
 import SwiftUI
 import CodexQuotaCore
 
-/// Renders soft and bright points in one Canvas using fixed, cached instance descriptors.
+/// Draws all organic lane emitters into one Canvas driven by the parent's shared TimelineView.
 struct DenseParticleStreamView: View {
     let level: TokenActivityLevel
     let elapsed: TimeInterval
     let state: QuotaDangerState
 
-    @State private var phaseAnchors = ParticleFlowSystem.streams.map { $0.particles.map(\.phase) }
-    @State private var phaseAnchorTime: TimeInterval = 0
-    @State private var transitionStart: TimeInterval = 0
-    @State private var transitionSourceCounts = ParticleStreamID.allCases.map { $0.particleCount(for: .calm) }
-    @State private var hasInitialized = false
+    @State private var emitters: [ParticleEmitterState] = []
+    @State private var lastElapsed: TimeInterval?
+    @State private var lastWidth: CGFloat = 0
 
     private let laneY: [CGFloat] = [6.5, 11.5, 16, 20.5, 25.5]
     private let wrapMargin: CGFloat = 6
-    private let transitionDuration: TimeInterval = 0.28
 
     var body: some View {
-        Canvas { context, size in
-            guard size.width > 0, size.height > 0, level != .calm else { return }
-            drawParticles(in: &context, size: size)
+        GeometryReader { geometry in
+            Canvas { context, size in
+                guard size.width > 0, size.height > 0, level != .calm, !emitters.isEmpty else { return }
+                drawParticles(in: &context, size: size)
+            }
+            .allowsHitTesting(false)
+            .onAppear {
+                initializeEmitters(width: geometry.size.width)
+            }
+            .onChange(of: elapsed) { _, newElapsed in
+                advanceEmitters(to: newElapsed, level: level, width: geometry.size.width)
+            }
+            .onChange(of: level) { oldLevel, newLevel in
+                changeActivity(from: oldLevel, to: newLevel, width: geometry.size.width)
+            }
+            .onChange(of: geometry.size.width) { oldWidth, newWidth in
+                resizeEmitters(from: oldWidth, to: newWidth)
+            }
         }
         .allowsHitTesting(false)
-        .onAppear(perform: initializePhases)
-        .onChange(of: level) { oldLevel, newLevel in
-            preservePhases(from: oldLevel, to: newLevel)
-        }
     }
 
-    /// Draws the active set and, during tier changes, fades added or removed points in place.
+    /// Seeds each lane once per view lifetime; the process seed varies the arrangement per launch.
+    private func initializeEmitters(width: CGFloat) {
+        guard emitters.isEmpty, width > 0 else { return }
+        emitters = ParticleFlowSystem.makeEmitters(
+            for: level,
+            width: width,
+            wrapMargin: wrapMargin,
+            at: elapsed
+        )
+        lastElapsed = elapsed
+        lastWidth = width
+    }
+
+    /// Integrates only the elapsed frame delta; a delayed frame cannot create a giant position jump.
+    private func advanceEmitters(to time: TimeInterval, level: TokenActivityLevel, width: CGFloat) {
+        guard !emitters.isEmpty else {
+            initializeEmitters(width: width)
+            return
+        }
+        guard width > 0 else { return }
+        let previousTime = lastElapsed ?? time
+        let delta = min(0.10, max(0, time - previousTime))
+        for index in emitters.indices {
+            ParticleFlowSystem.advance(
+                &emitters[index],
+                by: delta,
+                level: level,
+                width: width,
+                wrapMargin: wrapMargin,
+                at: time
+            )
+        }
+        lastElapsed = time
+    }
+
+    /// Keeps existing particles moving while count changes add into gaps or softly retire points.
+    private func changeActivity(from oldLevel: TokenActivityLevel, to newLevel: TokenActivityLevel, width: CGFloat) {
+        guard !emitters.isEmpty else {
+            initializeEmitters(width: width)
+            return
+        }
+        advanceEmitters(to: elapsed, level: oldLevel, width: width)
+        for index in emitters.indices {
+            ParticleFlowSystem.setTarget(
+                &emitters[index],
+                level: newLevel,
+                width: width,
+                at: elapsed
+            )
+        }
+        lastElapsed = elapsed
+    }
+
+    /// Preserves relative particle placement if SwiftUI changes the compact capsule width.
+    private func resizeEmitters(from oldWidth: CGFloat, to newWidth: CGFloat) {
+        guard !emitters.isEmpty, oldWidth > 0, newWidth > 0 else {
+            lastWidth = newWidth
+            return
+        }
+        for index in emitters.indices {
+            ParticleFlowSystem.resize(
+                &emitters[index],
+                from: lastWidth > 0 ? lastWidth : oldWidth,
+                to: newWidth,
+                wrapMargin: wrapMargin
+            )
+        }
+        lastWidth = newWidth
+    }
+
+    /// Draws independent streams back-to-front and applies the existing label-safe visual treatment.
     private func drawParticles(in context: inout GraphicsContext, size: CGSize) {
         let softColors = QuotaVisualStyle.softEnergyParticlePalette(for: state)
         let brightColors = QuotaVisualStyle.brightEnergyParticlePalette(for: state)
-        let progress = transitionProgress(at: elapsed)
-        let transitionSourceTotal = transitionSourceCounts.reduce(0, +)
-        let transitioning = hasInitialized
-            && elapsed - transitionStart < transitionDuration
-            && transitionSourceTotal != level.particleCount
-        let distance = size.width + wrapMargin * 2
         let violetAccent = QuotaVisualStyle.activityVioletAccent(for: state)
 
-        // Streams are kept in far-to-near order; each lane draws only its own phase sequence.
-        for streamIndex in ParticleFlowSystem.streams.indices {
-            let stream = ParticleFlowSystem.streams[streamIndex]
-            let targetCount = stream.id.particleCount(for: level)
-            let sourceCount = transitionSourceCounts[streamIndex]
-            let visibleCount = transitioning ? max(sourceCount, targetCount) : targetCount
-
-            for particleIndex in 0..<visibleCount {
-                let descriptor = stream.particles[particleIndex]
-                let phase = currentPhase(
-                    streamIndex: streamIndex,
-                    particleIndex: particleIndex,
-                    at: elapsed,
-                    travelTime: level.particleTravelSeconds,
-                    speedMultiplier: stream.id.speedMultiplier
-                )
-                let x = size.width + wrapMargin - CGFloat(phase) * distance
+        for emitter in emitters {
+            let stream = emitter.stream
+            for particle in emitter.particles {
+                let descriptor = particle.descriptor
+                let x = particle.x
                 let y = laneY[stream.id.lane]
-                let presence = presenceOpacity(
-                    for: particleIndex,
-                    sourceCount: sourceCount,
-                    targetCount: targetCount,
-                    progress: progress,
-                    transitioning: transitioning
-                )
+                let presence = particle.presence(at: elapsed)
                 guard presence > 0.001 else { continue }
                 let safeZone = textSafeZoneFactors(at: x, width: size.width, layer: stream.depthLayer)
                 let violetTint = rightVioletTint(at: x, width: size.width, layer: stream.depthLayer)
@@ -154,7 +208,7 @@ struct DenseParticleStreamView: View {
         drawVioletTint(in: &context, rect: rect, accent: violetAccent, opacity: coreOpacity * violetTint)
     }
 
-    /// Draws one pale core and a tight halo; the glow stays local and never forms a comet tail.
+    /// Draws a bright core with a tight halo; sparkle is limited to selected near particles.
     private func drawBrightParticle(
         in context: inout GraphicsContext,
         descriptor: DenseParticleDescriptor,
@@ -208,13 +262,13 @@ struct DenseParticleStreamView: View {
         case .far:
             return TextSafeZoneFactors(particleOpacity: 1, sparkleDepth: 0)
         case .mid:
-            return TextSafeZoneFactors(particleOpacity: 0.78 + 0.22 * smoothProgress, sparkleDepth: 0.20 + 0.80 * smoothProgress)
+            return TextSafeZoneFactors(particleOpacity: 0.90 + 0.10 * smoothProgress, sparkleDepth: 0.55 + 0.45 * smoothProgress)
         case .near:
-            return TextSafeZoneFactors(particleOpacity: 0.55 + 0.45 * smoothProgress, sparkleDepth: 0.45 + 0.55 * smoothProgress)
+            return TextSafeZoneFactors(particleOpacity: 0.78 + 0.22 * smoothProgress, sparkleDepth: 0.72 + 0.28 * smoothProgress)
         }
     }
 
-    /// Eases the violet bias from x=65% to the capsule's right edge.
+    /// Keeps the established right-side violet coverage and strength responsive to activity.
     private func rightVioletTint(at x: CGFloat, width: CGFloat, layer: ParticleDepthLayer) -> Double {
         let layerWeight: Double
         switch layer {
@@ -228,18 +282,13 @@ struct DenseParticleStreamView: View {
         return level.rightVioletParticleTint * layerWeight * smoothProgress
     }
 
-    /// Uses the shared timeline and cached descriptor seeds for asynchronous, continuous twinkle.
+    /// Uses stable per-particle phases for continuous twinkle without frame-random flicker.
     private func sparkleSample(
         for descriptor: DenseParticleDescriptor,
         at time: TimeInterval,
         depthScale: Double
     ) -> SparkleSample {
-        guard descriptor.sparkleEnabled,
-              let rank = descriptor.sparkleRank,
-              rank < level.sparkleParticleCount else {
-            return .steady
-        }
-
+        guard descriptor.sparkleEnabled else { return .steady }
         let wave = 0.5 + 0.5 * sin(
             2 * .pi * time * level.sparkleFrequencyHz * descriptor.twinkleSpeed
                 + descriptor.twinklePhase
@@ -251,100 +300,6 @@ struct DenseParticleStreamView: View {
             haloSizeMultiplier: 1 + (0.95 + 0.10 * wave - 1) * depthScale
         )
     }
-
-    /// Establishes every independently stratified lane/depth stream anchor when animation starts.
-    private func initializePhases() {
-        guard !hasInitialized else { return }
-        phaseAnchors = ParticleFlowSystem.streams.map { $0.particles.map(\.phase) }
-        phaseAnchorTime = elapsed
-        transitionStart = elapsed
-        transitionSourceCounts = ParticleFlowSystem.streams.map { $0.id.particleCount(for: level) }
-        hasInitialized = true
-    }
-
-    /// Preserves active stream positions and inserts new points at phase offsets matching that stream.
-    private func preservePhases(from oldLevel: TokenActivityLevel, to newLevel: TokenActivityLevel) {
-        let now = elapsed
-        let inPriorTransition = now - transitionStart < transitionDuration
-        let oldTravelTime = max(oldLevel.particleTravelSeconds, 0.1)
-        var anchors = phaseAnchors
-        var sourceCounts: [Int] = []
-        sourceCounts.reserveCapacity(ParticleFlowSystem.streams.count)
-
-        for streamIndex in ParticleFlowSystem.streams.indices {
-            let stream = ParticleFlowSystem.streams[streamIndex]
-            let oldCount = stream.id.particleCount(for: oldLevel)
-            let previousVisibleCount = inPriorTransition ? transitionSourceCounts[streamIndex] : 0
-            let sourceCount = max(oldCount, previousVisibleCount)
-            let targetCount = stream.id.particleCount(for: newLevel)
-            let phaseAdvance = max(0, now - phaseAnchorTime) / oldTravelTime * stream.id.speedMultiplier
-
-            for particleIndex in 0..<sourceCount {
-                anchors[streamIndex][particleIndex] = wrappedPhase(phaseAnchors[streamIndex][particleIndex] + phaseAdvance)
-            }
-
-            if targetCount > sourceCount {
-                // The shared stream offset keeps additions nested with particles that have already moved.
-                let streamOffset = sourceCount > 0
-                    ? wrappedPhase(anchors[streamIndex][0] - stream.particles[0].phase)
-                    : 0
-                for particleIndex in sourceCount..<targetCount {
-                    anchors[streamIndex][particleIndex] = wrappedPhase(stream.particles[particleIndex].phase + streamOffset)
-                }
-            }
-
-            sourceCounts.append(sourceCount)
-        }
-
-        phaseAnchors = anchors
-        transitionSourceCounts = sourceCounts
-        phaseAnchorTime = now
-        transitionStart = now
-        hasInitialized = true
-    }
-
-    /// Advances one point at its stream's shared speed and wraps only that point's phase.
-    private func currentPhase(
-        streamIndex: Int,
-        particleIndex: Int,
-        at time: TimeInterval,
-        travelTime: Double,
-        speedMultiplier: Double
-    ) -> Double {
-        guard hasInitialized else {
-            return ParticleFlowSystem.streams[streamIndex].particles[particleIndex].phase
-        }
-        let raw = phaseAnchors[streamIndex][particleIndex]
-            + max(0, time - phaseAnchorTime) / max(travelTime, 0.1) * speedMultiplier
-        return wrappedPhase(raw)
-    }
-
-    /// Fades only the per-stream additions/removals without restarting any existing stream.
-    private func presenceOpacity(
-        for particleIndex: Int,
-        sourceCount: Int,
-        targetCount: Int,
-        progress: Double,
-        transitioning: Bool
-    ) -> Double {
-        guard transitioning else { return 1 }
-        if targetCount > sourceCount && particleIndex >= sourceCount {
-            return progress
-        }
-        if sourceCount > targetCount && particleIndex >= targetCount {
-            return 1 - progress
-        }
-        return 1
-    }
-
-    private func transitionProgress(at time: TimeInterval) -> Double {
-        min(1, max(0, (time - transitionStart) / transitionDuration))
-    }
-
-    private func wrappedPhase(_ phase: Double) -> Double {
-        phase - floor(phase)
-    }
-
 }
 
 /// Per-particle text-zone adjustments fade smoothly across the edge of the label area.
