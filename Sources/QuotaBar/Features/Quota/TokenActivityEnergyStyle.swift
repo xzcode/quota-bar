@@ -52,161 +52,24 @@ enum ParticleStreamID: Int, CaseIterable {
         }
     }
 
-    /// Allocates the higher organic-emitter density independently across each depth and lane.
+    /// Scales every lane from its medium-tier baseline so each activity tier has an exact multiplier.
     func particleCount(for level: TokenActivityLevel) -> Int {
+        let mediumBaseline: Int
         switch self {
-        case .farLane0:
-            switch level {
-            case .calm: return 0
-            case .slow: return 10
-            case .medium: return 14
-            case .fast: return 20
-            case .veryFast: return 26
-            }
-        case .farLane1:
-            switch level {
-            case .calm: return 0
-            case .slow: return 10
-            case .medium: return 14
-            case .fast: return 22
-            case .veryFast: return 28
-            }
-        case .farLane2:
-            switch level {
-            case .calm: return 0
-            case .slow: return 10
-            case .medium: return 16
-            case .fast: return 20
-            case .veryFast: return 28
-            }
-        case .farLane3:
-            switch level {
-            case .calm: return 0
-            case .slow: return 10
-            case .medium: return 14
-            case .fast: return 22
-            case .veryFast: return 28
-            }
-        case .farLane4:
-            switch level {
-            case .calm: return 0
-            case .slow: return 8
-            case .medium: return 14
-            case .fast: return 20
-            case .veryFast: return 26
-            }
-        case .midLane1:
-            switch level {
-            case .calm: return 0
-            case .slow: return 6
-            case .medium: return 10
-            case .fast: return 16
-            case .veryFast: return 20
-            }
-        case .midLane2:
-            switch level {
-            case .calm: return 0
-            case .slow: return 8
-            case .medium: return 12
-            case .fast: return 16
-            case .veryFast: return 22
-            }
-        case .midLane3:
-            switch level {
-            case .calm: return 0
-            case .slow: return 8
-            case .medium: return 12
-            case .fast: return 16
-            case .veryFast: return 22
-            }
-        case .midLane4:
-            switch level {
-            case .calm: return 0
-            case .slow: return 6
-            case .medium: return 10
-            case .fast: return 16
-            case .veryFast: return 20
-            }
-        case .nearLane1, .nearLane3:
-            switch level {
-            case .calm: return 0
-            case .slow: return 2
-            case .medium: return 4
-            case .fast: return 6
-            case .veryFast: return 8
-            }
-        case .nearLane2:
-            switch level {
-            case .calm: return 0
-            case .slow: return 8
-            case .medium: return 8
-            case .fast: return 12
-            case .veryFast: return 16
-            }
+        case .farLane0, .farLane1, .farLane3, .farLane4: mediumBaseline = 14
+        case .farLane2: mediumBaseline = 16
+        case .midLane1, .midLane4: mediumBaseline = 10
+        case .midLane2, .midLane3: mediumBaseline = 12
+        case .nearLane1, .nearLane3: mediumBaseline = 4
+        case .nearLane2: mediumBaseline = 8
         }
-    }
 
-    /// Allocates near bright cores across lanes in a center-weighted 1:2:1 balance.
-    func brightParticleCount(for level: TokenActivityLevel) -> Int {
-        switch self {
-        case .nearLane1:
-            switch level {
-            case .calm, .slow: return 0
-            case .medium, .fast, .veryFast: return 2
-            }
-        case .nearLane2:
-            switch level {
-            case .calm: return 0
-            case .slow, .medium, .fast: return 2
-            case .veryFast: return 6
-            }
-        case .nearLane3:
-            switch level {
-            case .calm, .slow, .medium: return 0
-            case .fast, .veryFast: return 2
-            }
-        default:
-            return 0
-        }
-    }
-
-    /// Places the rare largest highlights on both near side lanes once those streams are active.
-    func highlightParticleCount(for level: TokenActivityLevel) -> Int {
-        switch self {
-        case .nearLane1:
-            switch level {
-            case .calm, .slow: return 0
-            case .medium, .fast, .veryFast: return 2
-            }
-        case .nearLane3:
-            switch level {
-            case .calm, .slow, .medium: return 0
-            case .fast, .veryFast: return 2
-            }
-        default:
-            return 0
-        }
-    }
-
-    /// Adds one subtle, non-sparkling mid accent to a different lane at each activity tier.
-    func midAccentParticleCount(for level: TokenActivityLevel) -> Int {
-        switch self {
-        case .midLane1:
-            return level == .calm ? 0 : 2
-        case .midLane2:
-            switch level {
-            case .calm, .slow: return 0
-            case .medium, .fast, .veryFast: return 2
-            }
-        case .midLane3:
-            switch level {
-            case .calm, .slow, .medium: return 0
-            case .fast, .veryFast: return 2
-            }
-        case .midLane4:
-            return level == .veryFast ? 2 : 0
-        default:
-            return 0
+        switch level {
+        case .calm: return 0
+        case .slow: return mediumBaseline / 2
+        case .medium: return mediumBaseline
+        case .fast: return mediumBaseline * 2
+        case .veryFast: return mediumBaseline * 4
         }
     }
 }
@@ -264,38 +127,51 @@ extension TokenActivityLevel {
             + ParticleStreamID.nearLane3.particleCount(for: self)
     }
 
-    /// Keeps just a handful of mid points subtly brighter, without giving them sparkle.
+    /// Scales the medium-tier mid accents with the same activity multiplier as the base streams.
     var midAccentParticleCount: Int {
-        ParticleStreamID.midLane1.midAccentParticleCount(for: self)
-            + ParticleStreamID.midLane2.midAccentParticleCount(for: self)
-            + ParticleStreamID.midLane3.midAccentParticleCount(for: self)
-            + ParticleStreamID.midLane4.midAccentParticleCount(for: self)
+        switch self {
+        case .calm: return 0
+        case .slow: return 2
+        case .medium: return 4
+        case .fast: return 8
+        case .veryFast: return 16
+        }
     }
 
-    /// Reserves the largest near highlights for fast tiers and keeps them rare.
+    /// Scales the medium-tier highlight subset while keeping its share of bright cores fixed.
     var nearHighlightParticleCount: Int {
-        ParticleStreamID.nearLane1.highlightParticleCount(for: self)
-            + ParticleStreamID.nearLane2.highlightParticleCount(for: self)
-            + ParticleStreamID.nearLane3.highlightParticleCount(for: self)
+        switch self {
+        case .calm: return 0
+        case .slow: return 1
+        case .medium: return 2
+        case .fast: return 4
+        case .veryFast: return 8
+        }
     }
 
     var particleCount: Int {
         farParticleCount + midParticleCount + nearParticleCount
     }
 
+    /// Scales bright near cores with the same 0.5×/1×/2×/4× tier multiplier as base particles.
     var brightParticleCount: Int {
-        ParticleStreamID.nearLane1.brightParticleCount(for: self)
-            + ParticleStreamID.nearLane2.brightParticleCount(for: self)
-            + ParticleStreamID.nearLane3.brightParticleCount(for: self)
+        switch self {
+        case .calm: return 0
+        case .slow: return 2
+        case .medium: return 4
+        case .fast: return 8
+        case .veryFast: return 16
+        }
     }
 
+    /// Keeps the sparkle-enabled particle quota proportional to the bright-core quota.
     var sparkleParticleCount: Int {
         switch self {
         case .calm: return 0
         case .slow: return 2
         case .medium: return 4
-        case .fast: return 6
-        case .veryFast: return 10
+        case .fast: return 8
+        case .veryFast: return 16
         }
     }
 

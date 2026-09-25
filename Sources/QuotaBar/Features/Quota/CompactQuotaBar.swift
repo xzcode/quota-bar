@@ -15,9 +15,9 @@ struct CompactQuotaBar: View {
         QuotaVisualStyle.dangerState(remaining: remaining)
     }
 
-    /// Calm, stale, and Reduce Motion states never construct a TimelineView or particle canvas.
+    /// Quota freshness never gates token activity; only calm activity and Reduce Motion stop animation.
     private var motionLevel: TokenActivityLevel? {
-        guard activityLevel != .calm, (!isStale || isDemoMode), !reduceMotion else {
+        guard activityLevel != .calm, !reduceMotion else {
             return nil
         }
         return activityLevel
