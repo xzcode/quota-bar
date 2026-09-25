@@ -6,30 +6,74 @@ extension TokenActivityLevel {
     var rightVioletAccent: Double {
         switch self {
         case .calm: return 0
-        case .slow: return 0.05
-        case .medium: return 0.10
-        case .fast: return 0.18
-        case .veryFast: return 0.28
+        case .slow: return 0.07
+        case .medium: return 0.12
+        case .fast: return 0.22
+        case .veryFast: return 0.32
+        }
+    }
+
+    var rightVioletOverlayOpacity: Double {
+        switch self {
+        case .calm: return 0
+        case .slow: return 0.24
+        case .medium: return 0.44
+        case .fast: return 0.64
+        case .veryFast: return 0.80
+        }
+    }
+
+    var rightVioletParticleTint: Double {
+        switch self {
+        case .calm: return 0
+        case .slow: return 0.04
+        case .medium: return 0.08
+        case .fast: return 0.13
+        case .veryFast: return 0.18
+        }
+    }
+
+    var farParticleCount: Int {
+        switch self {
+        case .calm: return 0
+        case .slow: return 7
+        case .medium: return 9
+        case .fast: return 12
+        case .veryFast: return 14
+        }
+    }
+
+    var midParticleCount: Int {
+        switch self {
+        case .calm: return 0
+        case .slow: return 7
+        case .medium: return 11
+        case .fast: return 14
+        case .veryFast: return 19
+        }
+    }
+
+    var nearParticleCount: Int {
+        switch self {
+        case .calm: return 0
+        case .slow: return 2
+        case .medium: return 4
+        case .fast: return 5
+        case .veryFast: return 7
         }
     }
 
     var particleCount: Int {
-        switch self {
-        case .calm: return 0
-        case .slow: return 32
-        case .medium: return 64
-        case .fast: return 96
-        case .veryFast: return 128
-        }
+        farParticleCount + midParticleCount + nearParticleCount
     }
 
     var brightParticleCount: Int {
         switch self {
         case .calm: return 0
-        case .slow: return 4
-        case .medium: return 8
-        case .fast: return 12
-        case .veryFast: return 16
+        case .slow: return 1
+        case .medium: return 2
+        case .fast: return 3
+        case .veryFast: return 5
         }
     }
 
@@ -38,8 +82,8 @@ extension TokenActivityLevel {
         case .calm: return 0
         case .slow: return 1
         case .medium: return 2
-        case .fast: return 5
-        case .veryFast: return 9
+        case .fast: return 3
+        case .veryFast: return 5
         }
     }
 
@@ -85,10 +129,10 @@ extension TokenActivityLevel {
     var particleTravelSeconds: Double {
         switch self {
         case .calm: return 0
-        case .slow: return 4.5
-        case .medium: return 3.2
-        case .fast: return 2.2
-        case .veryFast: return 0.7
+        case .slow: return 4.2
+        case .medium: return 3.0
+        case .fast: return 2.1
+        case .veryFast: return 1.3
         }
     }
 }
