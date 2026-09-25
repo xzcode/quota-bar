@@ -80,23 +80,33 @@ struct DenseParticleStreamView: View {
                         opacityMultiplier: safeZone.particleOpacity,
                         violetAccent: violetAccent,
                         violetTint: violetTint,
+                        haloStrengthMultiplier: stream.effectMultiplier,
                         sparkle: sparkleSample(
                             for: descriptor,
                             at: elapsed,
-                            depthScale: safeZone.sparkleDepth
+                            depthScale: safeZone.sparkleDepth * stream.effectMultiplier
                         )
                     )
                 } else {
+                    let haloStrength: Double
+                    switch stream.depthLayer {
+                    case .far:
+                        haloStrength = 0
+                    case .mid:
+                        haloStrength = descriptor.isMidAccent ? 0.05 : 0
+                    case .near:
+                        haloStrength = 0.12 * stream.effectMultiplier
+                    }
                     drawSoftParticle(
                         in: &context,
                         descriptor: descriptor,
-                        layer: stream.depthLayer,
                         center: CGPoint(x: x, y: y),
                         color: softColors[descriptor.colorIndex],
                         presence: presence,
                         opacityMultiplier: safeZone.particleOpacity,
                         violetAccent: violetAccent,
-                        violetTint: violetTint
+                        violetTint: violetTint,
+                        haloStrength: haloStrength
                     )
                 }
             }
@@ -107,24 +117,25 @@ struct DenseParticleStreamView: View {
     private func drawSoftParticle(
         in context: inout GraphicsContext,
         descriptor: DenseParticleDescriptor,
-        layer: ParticleDepthLayer,
         center: CGPoint,
         color: Color,
         presence: Double,
         opacityMultiplier: Double,
         violetAccent: Color,
-        violetTint: Double
+        violetTint: Double,
+        haloStrength: Double
     ) {
         let diameter = descriptor.size
-        if case .near = layer {
+        if haloStrength > 0 {
             let haloDiameter = diameter + 4
             let haloRect = CGRect(x: center.x - haloDiameter / 2, y: center.y - haloDiameter / 2, width: haloDiameter, height: haloDiameter)
+            let haloOpacity = haloStrength * presence * opacityMultiplier
             context.fill(
                 Path(ellipseIn: haloRect),
                 with: .radialGradient(
                     Gradient(colors: [
-                        color.opacity(0.12 * presence * opacityMultiplier),
-                        color.opacity(0.035 * presence * opacityMultiplier),
+                        color.opacity(haloOpacity),
+                        color.opacity(haloOpacity * 0.30),
                         .clear
                     ]),
                     center: center,
@@ -153,6 +164,7 @@ struct DenseParticleStreamView: View {
         opacityMultiplier: Double,
         violetAccent: Color,
         violetTint: Double,
+        haloStrengthMultiplier: Double,
         sparkle: SparkleSample
     ) {
         let coreDiameter = descriptor.size
@@ -162,8 +174,8 @@ struct DenseParticleStreamView: View {
             Path(ellipseIn: haloRect),
             with: .radialGradient(
                 Gradient(colors: [
-                    color.opacity(0.28 * presence * opacityMultiplier * sparkle.haloOpacityMultiplier),
-                    color.opacity(0.10 * presence * opacityMultiplier * sparkle.haloOpacityMultiplier),
+                    color.opacity(0.28 * presence * opacityMultiplier * haloStrengthMultiplier * sparkle.haloOpacityMultiplier),
+                    color.opacity(0.10 * presence * opacityMultiplier * haloStrengthMultiplier * sparkle.haloOpacityMultiplier),
                     .clear
                 ]),
                 center: center,
@@ -240,7 +252,7 @@ struct DenseParticleStreamView: View {
         )
     }
 
-    /// Establishes all five independently stratified stream anchors when animation starts.
+    /// Establishes every independently stratified lane/depth stream anchor when animation starts.
     private func initializePhases() {
         guard !hasInitialized else { return }
         phaseAnchors = ParticleFlowSystem.streams.map { $0.particles.map(\.phase) }

@@ -56,9 +56,7 @@ final class QuotaViewModel: ObservableObject {
     @Published private(set) var burnRate: BurnRateSnapshot = .unknown
     @Published private(set) var localTokenUsage = LocalTokenUsageSnapshot.unavailable()
     @Published private(set) var diagnosticDetails: String? = nil
-#if DEBUG
     @Published private(set) var energyDemoLevel: TokenActivityLevel?
-#endif
 
     private let client: CodexAppServerClient
     private let cache = QuotaCacheStore()
@@ -67,19 +65,11 @@ final class QuotaViewModel: ObservableObject {
     private var localTokenUsageTask: Task<Void, Never>?
 
     var compactActivityLevel: TokenActivityLevel {
-#if DEBUG
         energyDemoLevel ?? localTokenUsage.activityLevel
-#else
-        localTokenUsage.activityLevel
-#endif
     }
 
     var isEnergyDemoMode: Bool {
-#if DEBUG
         energyDemoLevel != nil
-#else
-        false
-#endif
     }
 
     init(client: CodexAppServerClient) {
@@ -174,12 +164,10 @@ final class QuotaViewModel: ObservableObject {
         transientNotice = notice
     }
 
-#if DEBUG
-    /// Overrides only the compact visual tier for local FX review, never the real token snapshot.
+    /// Overrides only the compact visual tier; quota and token statistics remain untouched.
     func setEnergyDemoLevel(_ level: TokenActivityLevel?) {
         energyDemoLevel = level
     }
-#endif
 
     var primaryBucket: QuotaBucket? {
         guard let buckets = snapshot?.buckets else { return nil }

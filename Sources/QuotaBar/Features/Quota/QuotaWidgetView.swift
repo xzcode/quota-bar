@@ -56,18 +56,51 @@ struct QuotaWidgetView: View {
             }
             SettingsLink { Text("设置") }
             Button("复制诊断信息") { copyDiagnostics() }
-#if DEBUG
-            Button("Energy FX · Calm") { viewModel.setEnergyDemoLevel(.calm) }
-            Button("Energy FX · Slow") { viewModel.setEnergyDemoLevel(.slow) }
-            Button("Energy FX · Medium") { viewModel.setEnergyDemoLevel(.medium) }
-            Button("Energy FX · Fast") { viewModel.setEnergyDemoLevel(.fast) }
-            Button("Energy FX · Very Fast") { viewModel.setEnergyDemoLevel(.veryFast) }
-            Button("Energy FX · 使用真实 Token 活动") { viewModel.setEnergyDemoLevel(nil) }
-#endif
+            energyEffectsMenu
             Divider()
             Button("退出") { AppDelegate.requestTermination() }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Keeps visual-effect controls available in both release and debug app bundles.
+    private var energyEffectsMenu: some View {
+        Menu {
+            Section("模拟粒子活动") {
+                energyLevelButton("静止", level: .calm)
+                energyLevelButton("慢速", level: .slow)
+                energyLevelButton("中速", level: .medium)
+                energyLevelButton("快速", level: .fast)
+                energyLevelButton("飞快", level: .veryFast)
+            }
+            Section {
+                Button {
+                    viewModel.setEnergyDemoLevel(nil)
+                } label: {
+                    if viewModel.energyDemoLevel == nil {
+                        Label("跟随真实 Token 活动", systemImage: "checkmark")
+                    } else {
+                        Text("跟随真实 Token 活动")
+                    }
+                }
+            }
+        } label: {
+            Label("效果调试", systemImage: "sparkles")
+        }
+        .help("临时覆盖胶囊的粒子活动档位，不影响额度或 Token 统计")
+    }
+
+    /// Marks the currently forced activity tier while leaving other tiers directly selectable.
+    private func energyLevelButton(_ title: String, level: TokenActivityLevel) -> some View {
+        Button {
+            viewModel.setEnergyDemoLevel(level)
+        } label: {
+            if viewModel.energyDemoLevel == level {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     private var expandedContent: some View {
@@ -141,14 +174,7 @@ struct QuotaWidgetView: View {
                 }
                 SettingsLink { Text("设置") }
                 Button("复制诊断信息") { copyDiagnostics() }
-#if DEBUG
-                Button("Energy FX · Calm") { viewModel.setEnergyDemoLevel(.calm) }
-                Button("Energy FX · Slow") { viewModel.setEnergyDemoLevel(.slow) }
-                Button("Energy FX · Medium") { viewModel.setEnergyDemoLevel(.medium) }
-                Button("Energy FX · Fast") { viewModel.setEnergyDemoLevel(.fast) }
-                Button("Energy FX · Very Fast") { viewModel.setEnergyDemoLevel(.veryFast) }
-                Button("Energy FX · 使用真实 Token 活动") { viewModel.setEnergyDemoLevel(nil) }
-#endif
+                energyEffectsMenu
                 Divider()
                 Button("退出") { AppDelegate.requestTermination() }
             } label: {
