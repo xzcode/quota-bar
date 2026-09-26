@@ -48,7 +48,7 @@ enum QuotaVisualStyle {
     static func softEnergyParticlePalette(for state: QuotaDangerState) -> [Color] {
         switch state {
         case .normal:
-            return [rgb(0x55, 0xBF, 0xFF), rgb(0x55, 0x7B, 0xFF), rgb(0x7B, 0x5B, 0xFF)]
+            return [rgb(0x48, 0x78, 0xFF), rgb(0x78, 0xA5, 0xFF), rgb(0xB4, 0x75, 0xFF)]
         case .low:
             return [rgb(0xA7, 0x72, 0xFF), rgb(0xC3, 0x5D, 0xE8), rgb(0xFF, 0xC3, 0x6A)]
         case .critical:
@@ -62,7 +62,7 @@ enum QuotaVisualStyle {
     static func brightEnergyParticlePalette(for state: QuotaDangerState) -> [Color] {
         switch state {
         case .normal:
-            return [rgb(0xC8, 0xF4, 0xFF), rgb(0xD6, 0xE6, 0xFF), rgb(0xE1, 0xD4, 0xFF)]
+            return [rgb(0xD1, 0xE4, 0xFF), rgb(0xD6, 0xE6, 0xFF), rgb(0xE1, 0xD4, 0xFF)]
         case .low:
             return [rgb(0xE5, 0xD9, 0xFF), rgb(0xF4, 0xD7, 0xF3), rgb(0xFF, 0xE8, 0xC7)]
         case .critical:
@@ -115,7 +115,10 @@ enum QuotaVisualStyle {
     }
 
     static func progressColors(remaining: Int) -> [Color] {
-        gradientColors(remaining: Double(remaining), isStale: false)
+        // Healthy reserves use the reactor spectrum; danger colors retain their continuous mapping.
+        remaining > 25
+            ? softEnergyParticlePalette(for: .normal)
+            : gradientColors(remaining: Double(remaining), isStale: false)
     }
 
     /// Converts byte-style RGB values to SwiftUI's normalized color components.

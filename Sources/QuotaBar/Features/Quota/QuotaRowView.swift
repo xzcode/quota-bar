@@ -21,7 +21,7 @@ struct QuotaRowView: View {
                 let fraction = CGFloat(window.remainingPercent) / 100
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(.white.opacity(0.12))
+                        .fill(.white.opacity(0.07))
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(
                             LinearGradient(
@@ -31,6 +31,15 @@ struct QuotaRowView: View {
                             )
                         )
                         .frame(width: geometry.size.width * fraction)
+                        .shadow(color: QuotaVisualStyle.progressColors(remaining: window.remainingPercent)[0].opacity(0.45), radius: 4)
+                    // Fine instrument ticks improve quota estimation without adding numeric clutter.
+                    HStack(spacing: 0) {
+                        ForEach(0..<10) { _ in
+                            Spacer(minLength: 0)
+                            Rectangle().fill(.black.opacity(0.28)).frame(width: 1)
+                        }
+                    }
+                    .allowsHitTesting(false)
                 }
             }
             .frame(height: 6)

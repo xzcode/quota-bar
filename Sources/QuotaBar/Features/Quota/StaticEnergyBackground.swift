@@ -1,82 +1,43 @@
 import SwiftUI
 
-/// A fully static glass-and-energy finish for calm and Reduce Motion states.
+/// A continuous illuminated glass surface stays motionless when usage stops.
 struct StaticEnergyBackground: View {
     let state: QuotaDangerState
 
-    private var palette: [Color] {
-        QuotaVisualStyle.palette(for: state)
-    }
-
     var body: some View {
         GeometryReader { geometry in
+            let colors = QuotaVisualStyle.softEnergyParticlePalette(for: state)
             ZStack {
                 LinearGradient(
-                    colors: palette,
-                    startPoint: .leading,
-                    endPoint: .trailing
+                    // Restore the original saturated blue-violet surface, including quota danger palettes.
+                    colors: QuotaVisualStyle.palette(for: state),
+                    startPoint: .leading, endPoint: .trailing
                 )
-
-                // Broad blurred radial overlays keep the capsule dimensional without hard circles.
                 RadialGradient(
-                    colors: [palette[0].opacity(0.30), palette[0].opacity(0)],
-                    center: UnitPoint(x: 0.04, y: 0.5),
-                    startRadius: 1,
-                    endRadius: geometry.size.width * 0.62
+                    colors: [colors[0].opacity(0.22), colors[0].opacity(0.04), .clear],
+                    center: UnitPoint(x: 0.02, y: 0.85), startRadius: 0,
+                    endRadius: geometry.size.width * 0.72
                 )
-                .blur(radius: 16)
-
                 RadialGradient(
-                    colors: [palette[palette.count - 1].opacity(0.24), palette[palette.count - 1].opacity(0)],
-                    center: UnitPoint(x: 0.97, y: 0.5),
-                    startRadius: 1,
-                    endRadius: geometry.size.width * 0.58
+                    colors: [colors[2].opacity(0.22), colors[2].opacity(0.04), .clear],
+                    center: UnitPoint(x: 0.98, y: 0.2), startRadius: 0,
+                    endRadius: geometry.size.width * 0.70
                 )
-                .blur(radius: 16)
-
-                RadialGradient(
-                    colors: [.white.opacity(0.075), .white.opacity(0)],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: geometry.size.width * 0.42
-                )
-                .blur(radius: 12)
-
-                LinearGradient(
-                    colors: [.white.opacity(0.07), .clear, .black.opacity(0.10)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                VStack(spacing: 0) {
-                    LinearGradient(
-                        colors: [.clear, .white.opacity(0.16), .white.opacity(0.12), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(height: 1.4)
-                    .padding(.horizontal, 22)
-                    .padding(.top, 1)
-                    Spacer(minLength: 0)
-                }
+                // A faint reflection preserves saturated color instead of washing the surface gray.
+                LinearGradient(colors: [.white.opacity(0.035), .clear],
+                               startPoint: .top, endPoint: .bottom)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
             .clipShape(Capsule())
             .overlay {
-                Capsule()
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [palette[0].opacity(0.42), palette[1].opacity(0.28), palette.last!.opacity(0.38)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.9
-                    )
+                Capsule().strokeBorder(
+                    LinearGradient(colors: [colors[0].opacity(0.8), .white.opacity(0.22),
+                                            colors[2].opacity(0.55), colors[0].opacity(0.22)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 0.8
+                )
             }
             .overlay {
-                Capsule()
-                    .strokeBorder(.white.opacity(0.045), lineWidth: 0.55)
-                    .padding(1)
+                Capsule().inset(by: 2).strokeBorder(.white.opacity(0.05), lineWidth: 0.5)
             }
         }
         .accessibilityHidden(true)

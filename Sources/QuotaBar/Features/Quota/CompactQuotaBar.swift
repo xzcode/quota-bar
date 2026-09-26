@@ -26,7 +26,8 @@ struct CompactQuotaBar: View {
     var body: some View {
         ZStack {
             StaticEnergyBackground(state: dangerState)
-                .saturation(isStale && !isDemoMode ? 0.45 : 1)
+                // Stale data gets a subtle color cue; keep the energy spectrum visibly saturated.
+                .saturation(isStale && !isDemoMode ? 0.85 : 1)
                 .animation(
                     reduceMotion ? .easeOut(duration: 0.12) : .easeInOut(duration: 0.4),
                     value: isStale && !isDemoMode
@@ -39,19 +40,20 @@ struct CompactQuotaBar: View {
                         elapsed: timeline.date.timeIntervalSinceReferenceDate,
                         state: dangerState
                     )
-                    .saturation(isStale ? 0.45 : 1)
+                    .saturation(isStale && !isDemoMode ? 0.85 : 1)
                 }
                 .transition(.opacity)
             }
 
             Text(quotaSummary ?? remaining.map { "\($0)%" } ?? "—")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
                 .allowsTightening(true)
-                .shadow(color: .black.opacity(0.25), radius: 2.5, y: 1)
+                // A centered blue halo keeps the readout luminous without a dark patch beneath it.
+                .shadow(color: .blue.opacity(0.18), radius: 2)
 
         }
         .clipShape(Capsule())

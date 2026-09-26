@@ -136,6 +136,11 @@ struct QuotaWidgetView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
+            // A compact reactor badge ties the expanded instrument panel to the capsule palette.
+            Image(systemName: "square.stack.3d.up.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.cyan)
+                .shadow(color: .cyan.opacity(0.45), radius: 5)
             Text("Codex")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white.opacity(0.98))
@@ -249,23 +254,23 @@ private struct ExpandedCardBackground: View {
         ZStack {
             shape.fill(
                 LinearGradient(
-                    colors: [rgb(0x15, 0x1A, 0x24), rgb(0x12, 0x15, 0x1B), rgb(0x18, 0x14, 0x21)],
+                    colors: [rgb(0x09, 0x19, 0x24), rgb(0x0D, 0x11, 0x1D), rgb(0x20, 0x10, 0x32)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
 
-            // Low-opacity radial glows add depth without tinting the dark base purple or blue.
+            // Cyan and violet reservoirs carry the capsule's reactor colors into the detail panel.
             GeometryReader { geometry in
                 ZStack {
                     RadialGradient(
-                        colors: [rgb(0x45, 0x68, 0xC8).opacity(0.08), .clear],
+                        colors: [rgb(0x38, 0xDE, 0xE8).opacity(0.16), .clear],
                         center: .topLeading,
                         startRadius: 0,
                         endRadius: geometry.size.width * 0.9
                     )
                     RadialGradient(
-                        colors: [rgb(0x76, 0x4A, 0xA8).opacity(0.06), .clear],
+                        colors: [rgb(0xA6, 0x59, 0xEE).opacity(0.18), .clear],
                         center: .bottomTrailing,
                         startRadius: 0,
                         endRadius: geometry.size.width * 0.9
@@ -291,7 +296,7 @@ private struct ExpandedCardBackground: View {
 
             shape.strokeBorder(
                 LinearGradient(
-                    colors: [.white.opacity(0.11), rgb(0x91, 0x9D, 0xC5).opacity(0.08)],
+                    colors: [Color.cyan.opacity(0.32), .white.opacity(0.08), Color.purple.opacity(0.28)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),

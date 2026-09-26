@@ -92,26 +92,51 @@ public struct RolloutTokenUsageEvent: Sendable, Equatable {
     }
 }
 
-/// Extracts only token_count payloads; unknown event fields are skipped by Codable.
+/// Lifecycle metadata contains no messages or tool arguments.
+public struct RolloutActivityEvent: Sendable {
+    public let timestamp: Date
+    public let turnID: String?
+    public let isRunning: Bool
+}
+
+/// One decoded monitor event; usage and lifecycle share a single JSON decode per line.
+public enum RolloutMonitorEvent: Sendable {
+    case usage(RolloutTokenUsageEvent)
+    case activity(RolloutActivityEvent)
+}
+
+/// Extracts aggregate usage and lifecycle metadata, skipping conversation content.
 public enum RolloutTokenParser {
     public static func parse(line: Data) -> RolloutTokenUsageEvent? {
+        guard case let .usage(event) = parseEvent(line: line) else { return nil }
+        return event
+    }
+
+    /// Completion and cancellation must reach the monitor even without a token delta.
+    public static func parseEvent(line: Data) -> RolloutMonitorEvent? {
         guard let envelope = try? JSONDecoder().decode(RolloutEnvelope.self, from: line),
               let payload = envelope.payload,
-              payload.type == "token_count",
-              let usage = payload.info?.totalTokenUsage,
               let timestamp = parseTimestamp(envelope.timestamp ?? payload.timestamp) else {
             return nil
         }
 
+        if envelope.type == "event_msg",
+           let type = payload.type,
+           ["task_started", "task_complete", "turn_aborted"].contains(type) {
+            return .activity(RolloutActivityEvent(timestamp: timestamp, turnID: payload.turnID,
+                                                  isRunning: type == "task_started"))
+        }
+        guard payload.type == "token_count", let usage = payload.info?.totalTokenUsage else { return nil }
+
         let total = usage.totalTokens ?? sum(usage.inputTokens, usage.outputTokens)
         guard let total else { return nil }
-        return RolloutTokenUsageEvent(
+        return .usage(RolloutTokenUsageEvent(
             timestamp: timestamp,
             totalTokens: total,
             inputTokens: usage.inputTokens,
             cachedInputTokens: usage.cachedInputTokens,
             outputTokens: usage.outputTokens
-        )
+        ))
     }
 
     /// ISO-8601 rollout timestamps may or may not include fractional seconds.
@@ -176,12 +201,27 @@ public struct LocalTokenUsageAccumulator: Sendable {
         var lastUsageAt: Date?
         var events: [DeltaEvent] = []
         var hasTokenData = false
+        var lifecycleAt: Date?
+        var activeTurnID: String?
+        var isRunning = false
     }
 
     private var sessions: [String: SessionState] = [:]
     private var currentDayStart: Date?
 
     public init() {}
+
+    /// Tracks each session independently; a late completion for an older turn cannot stop a newer turn.
+    public mutating func recordActivity(_ event: RolloutActivityEvent, sessionID: String) {
+        var state = sessions[sessionID, default: SessionState()]
+        guard state.lifecycleAt.map({ event.timestamp >= $0 }) ?? true else { return }
+        if !event.isRunning, let activeID = state.activeTurnID, let eventID = event.turnID,
+           activeID != eventID { return }
+        state.lifecycleAt = event.timestamp
+        state.activeTurnID = event.isRunning ? event.turnID : nil
+        state.isRunning = event.isRunning
+        sessions[sessionID] = state
+    }
 
     /// Records a cumulative sample, counting only its positive delta for the local calendar day.
     public mutating func record(
@@ -244,6 +284,7 @@ public struct LocalTokenUsageAccumulator: Sendable {
         var recentTokens: Int64 = 0
         let rateCutoff = now.addingTimeInterval(-2 * 60)
         var available = false
+        var activeRecently = false
 
         for id in Array(sessions.keys) {
             guard var state = sessions[id] else { continue }
@@ -254,6 +295,16 @@ public struct LocalTokenUsageAccumulator: Sendable {
             cachedInput = adding(cachedInput, state.todayCachedInput)
             output = adding(output, state.todayOutput)
             available = available || state.hasTokenData
+            if let usageAt = state.lastUsageAt {
+                let age = now.timeIntervalSince(usageAt)
+                if let lifecycleAt = state.lifecycleAt {
+                    // Ended sessions stop immediately; token history still contributes to usage totals.
+                    activeRecently = activeRecently || (state.isRunning && usageAt >= lifecycleAt && age >= 0 && age <= 90)
+                } else {
+                    // Preserve the legacy recency fallback only for logs without lifecycle metadata.
+                    activeRecently = activeRecently || (age >= 0 && age <= 90)
+                }
+            }
             if let usageAt = state.lastUsageAt, latestUsage.map({ usageAt > $0 }) ?? true {
                 latestUsage = usageAt
             }
@@ -263,7 +314,6 @@ public struct LocalTokenUsageAccumulator: Sendable {
         }
 
         let rate = Double(recentTokens) / 2
-        let activeRecently = latestUsage.map { now.timeIntervalSince($0) <= 90 } ?? false
         let level = TokenActivityPolicy.level(tokensPerMinute: rate, hasRecentUsage: activeRecently)
         return LocalTokenUsageSnapshot(
             capturedAt: now,
@@ -359,20 +409,26 @@ public enum LocalTokenUsageFormatter {
 }
 
 private struct RolloutEnvelope: Decodable {
+    let type: String?
     let timestamp: String?
     let payload: RolloutPayload?
 }
 
 private struct RolloutPayload: Decodable {
     let type: String?
+    let turnID: String?
     let timestamp: String?
     let info: RolloutInfo?
 
-    private enum CodingKeys: String, CodingKey { case type, timestamp, info }
+    private enum CodingKeys: String, CodingKey {
+        case type, timestamp, info
+        case turnID = "turn_id"
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         type = try container.decodeIfPresent(String.self, forKey: .type)
+        turnID = try container.decodeIfPresent(String.self, forKey: .turnID)
         timestamp = try container.decodeIfPresent(String.self, forKey: .timestamp)
         // Avoid decoding arbitrary event payloads; only token_count's aggregate is retained.
         info = type == "token_count" ? try container.decodeIfPresent(RolloutInfo.self, forKey: .info) : nil

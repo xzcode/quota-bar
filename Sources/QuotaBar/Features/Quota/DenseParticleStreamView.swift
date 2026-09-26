@@ -18,6 +18,7 @@ struct DenseParticleStreamView: View {
         GeometryReader { geometry in
             Canvas { context, size in
                 guard size.width > 0, size.height > 0, level != .calm, !emitters.isEmpty else { return }
+                drawEnergyFilaments(in: &context, size: size)
                 drawParticles(in: &context, size: size)
             }
             .allowsHitTesting(false)
@@ -118,11 +119,19 @@ struct DenseParticleStreamView: View {
             for particle in emitter.particles {
                 let descriptor = particle.descriptor
                 let x = particle.x
-                let y = laneY[stream.id.lane]
+                // Stable orbital offsets dissolve horizontal rows into a volumetric stream.
+                let y = laneY[stream.id.lane] + sin(x / 38 + descriptor.twinklePhase) * 1.7
                 let presence = particle.presence(at: elapsed)
                 guard presence > 0.001 else { continue }
                 let safeZone = textSafeZoneFactors(at: x, width: size.width, layer: stream.depthLayer)
                 let violetTint = rightVioletTint(at: x, width: size.width, layer: stream.depthLayer)
+
+                if stream.depthLayer == .near || descriptor.isMidAccent {
+                    drawCometTail(in: &context, center: CGPoint(x: x, y: y),
+                                  color: softColors[descriptor.colorIndex],
+                                  diameter: descriptor.size, bright: descriptor.isBright,
+                                  opacity: presence * safeZone.particleOpacity * descriptor.opacity)
+                }
 
                 if descriptor.isBright {
                     drawBrightParticle(
@@ -164,6 +173,57 @@ struct DenseParticleStreamView: View {
                     )
                 }
             }
+        }
+    }
+
+    /// Four plasma threads share the particle clock and Canvas, avoiding extra timers and views.
+    private func drawEnergyFilaments(in context: inout GraphicsContext, size: CGSize) {
+        let colors = QuotaVisualStyle.softEnergyParticlePalette(for: state)
+        for index in 0..<4 {
+            var path = Path()
+            let phase = Double(index) * 1.7
+            for step in 0...48 {
+                let x = size.width * Double(step) / 48
+                let normalizedX = x / size.width
+                // Edge-weighted excursions frame the readout without an opaque central mask.
+                let envelope = 0.35 + 0.65 * abs(normalizedX - 0.5) * 2
+                let y = size.height * (index.isMultiple(of: 2) ? 0.23 : 0.77)
+                    + sin(normalizedX * 7 + elapsed * (0.45 + reactorIntensity) + phase) * 4 * envelope
+                let point = CGPoint(x: x, y: y)
+                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            let color = colors[index % colors.count]
+            let shading = GraphicsContext.Shading.linearGradient(
+                Gradient(colors: [color.opacity(0.7), color.opacity(0.08), color.opacity(0.55)]),
+                startPoint: .zero, endPoint: CGPoint(x: size.width, y: 0)
+            )
+            var glow = context
+            glow.opacity = 0.12 + reactorIntensity * 0.12
+            glow.stroke(path, with: shading, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+            context.stroke(path, with: shading, style: StrokeStyle(lineWidth: 0.55, lineCap: .round))
+        }
+    }
+
+    /// Left-moving near particles leave a tapered luminous wake extending to the right.
+    private func drawCometTail(in context: inout GraphicsContext, center: CGPoint, color: Color,
+                               diameter: CGFloat, bright: Bool, opacity: Double) {
+        let length = (bright ? 10.0 : 4.0) + reactorIntensity * (bright ? 17 : 9)
+        let thickness = max(0.7, diameter * (bright ? 0.5 : 0.28))
+        let rect = CGRect(x: center.x, y: center.y - thickness / 2, width: length, height: thickness)
+        context.fill(Path(roundedRect: rect, cornerRadius: thickness / 2), with: .linearGradient(
+            Gradient(colors: [color.opacity(opacity * 0.65), color.opacity(opacity * 0.15), .clear]),
+            startPoint: center, endPoint: CGPoint(x: center.x + length, y: center.y)
+        ))
+    }
+
+    /// Activity strengthens the wake independently of the quota danger colors.
+    private var reactorIntensity: Double {
+        switch level {
+        case .calm: return 0
+        case .slow: return 0.2
+        case .medium: return 0.45
+        case .fast: return 0.72
+        case .veryFast: return 1
         }
     }
 
@@ -222,7 +282,7 @@ struct DenseParticleStreamView: View {
         sparkle: SparkleSample
     ) {
         let coreDiameter = descriptor.size
-        let haloDiameter = (coreDiameter + 4) * sparkle.haloSizeMultiplier
+        let haloDiameter = (coreDiameter + 8) * sparkle.haloSizeMultiplier
         let haloRect = CGRect(x: center.x - haloDiameter / 2, y: center.y - haloDiameter / 2, width: haloDiameter, height: haloDiameter)
         context.fill(
             Path(ellipseIn: haloRect),

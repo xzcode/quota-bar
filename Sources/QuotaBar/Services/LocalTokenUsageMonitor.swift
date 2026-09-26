@@ -132,13 +132,14 @@ actor LocalTokenUsageMonitor {
             while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
                 state.byteOffset += UInt64(chunk.count)
                 for line in state.lineBuffer.append(chunk) {
-                    guard let event = RolloutTokenParser.parse(line: line) else { continue }
-                    accumulator.record(
-                        event,
-                        sessionID: key,
-                        sessionStartedAt: state.sessionStartedAt,
-                        calendar: calendar
-                    )
+                    guard let event = RolloutTokenParser.parseEvent(line: line) else { continue }
+                    switch event {
+                    case .usage(let usage):
+                        accumulator.record(usage, sessionID: key,
+                                           sessionStartedAt: state.sessionStartedAt, calendar: calendar)
+                    case .activity(let activity):
+                        accumulator.recordActivity(activity, sessionID: key)
+                    }
                 }
             }
             state.fileSize = state.byteOffset
